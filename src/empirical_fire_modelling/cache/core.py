@@ -58,7 +58,6 @@ def cache(func, ma_cache_inst=_cache):
                 raise NotCachedError("The given call is not cached.")
             return IN_STORE
         # Otherwise continue on as normal.
-        print("calling cached_func:", args)
         return cached_func(*args, **kwargs)
 
     return cached_check
