@@ -3,27 +3,34 @@
 
 Note that dataframe column name changes may not trigger recalculations.
 
+Due to the custom implementation of lazy proxied objects being returned from the
+custom Joblib backend, all cached functions within this module should be decorated
+exclusively with the `cache` decorator defined here.
+
+Calling repr() on Proxy objects is fine, but calling str() will realise them
+(i.e. call the factory function), so e.g. bare print() statements should not be used.
+
 """
 import logging
 from functools import wraps
 
 from wildfires.data import get_memory, ma_cache
 from wildfires.joblib.caching import wrap_decorator
-from wildfires.joblib.cloudpickle_backend import register_backend as register_cl_backend
 
 from ..exceptions import InvalidCacheCheck, NotCachedError
+from .custom_backend import custom_get_hash, register_backend
 
 logger = logging.getLogger(__name__)
 
 
-__all__ = ("IN_STORE", "cache", "check_in_store")
+__all__ = ("IN_STORE", "cache", "check_in_store", "custom_get_hash")
 
 # Sentinel value used to denote calls that are already cached.
 IN_STORE = object()
 
-register_cl_backend()
-_memory = get_memory("empirical_fire_modelling", backend="cloudpickle", verbose=2)
-_cache = ma_cache(memory=_memory)
+register_backend()
+_memory = get_memory("empirical_fire_modelling", backend="custom", verbose=2)
+_cache = ma_cache(memory=_memory, hash_func=custom_get_hash)
 
 
 # Add presence-checking functionality.
@@ -51,6 +58,7 @@ def cache(func, ma_cache_inst=_cache):
                 raise NotCachedError("The given call is not cached.")
             return IN_STORE
         # Otherwise continue on as normal.
+        print("calling cached_func:", args)
         return cached_func(*args, **kwargs)
 
     return cached_check

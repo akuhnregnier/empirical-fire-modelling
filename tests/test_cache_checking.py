@@ -1,29 +1,11 @@
 # -*- coding: utf-8 -*-
-import tempfile
 
 import pytest
-from joblib import Memory
-from wildfires.data import ma_cache
 
-from empirical_fire_modelling.cache import IN_STORE, cache, check_in_store
+from empirical_fire_modelling.cache import IN_STORE, check_in_store
 from empirical_fire_modelling.exceptions import NotCachedError
 
-
-@pytest.fixture
-def dummy_memory():
-    tmp_dir = tempfile.TemporaryDirectory()
-    yield Memory(tmp_dir.name)
-    tmp_dir.cleanup()
-
-
-@pytest.fixture
-def ma_cache_inst(dummy_memory):
-    return ma_cache(memory=dummy_memory)
-
-
-@pytest.fixture()
-def test_cache(ma_cache_inst):
-    return cache(ma_cache_inst=ma_cache_inst)
+from .utils import *  # noqa
 
 
 def test_uncached_exception(test_cache):
