@@ -193,18 +193,25 @@ class CustomStoreBackend(StoreBackendBase, StoreBackendMixin):
 
             logger.debug(f"cloudpickle loading filename '{filename}'.")
             with open(filename, "rb") as f:
-                item = cloudpickle.load(f)
+                contents = cloudpickle.load(f)
 
-            load_func.stored = item
-            return item
+            load_func.stored = contents
+            return contents
 
         if len(hash_values) == 1:
             # If only a single value has been stored.
             return HashProxy(Factory(load_func), hash_value=hash_values[0])
         # Otherwise create a lazy proxy for each individual object to associate each
         # stored object with its individual hash value.
+
+        def get_factory_func(i):
+            def factory_func():
+                return load_func()[i]
+
+            return factory_func
+
         return tuple(
-            HashProxy(Factory(lambda: load_func()[i]), hash_value=hash_value)
+            HashProxy(Factory(get_factory_func(i)), hash_value=hash_value)
             for i, hash_value in enumerate(hash_values)
         )
 
