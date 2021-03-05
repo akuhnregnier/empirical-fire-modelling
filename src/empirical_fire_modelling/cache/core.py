@@ -5,7 +5,9 @@ Note that dataframe column name changes may not trigger recalculations.
 
 Due to the custom implementation of lazy proxied objects being returned from the
 custom Joblib backend, all cached functions within this module should be decorated
-exclusively with the `cache` decorator defined here.
+exclusively with the `cache` decorator defined here. To minimise the possibility of a
+Proxy object being realised, as many functions as possible should be cached (at the
+expense of storage, of course).
 
 Calling repr() on Proxy objects is fine, but calling str() will realise them
 (i.e. call the factory function), so e.g. bare print() statements should not be used.
