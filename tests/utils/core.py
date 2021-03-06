@@ -5,9 +5,9 @@ import iris
 import numpy as np
 import pytest
 from joblib import Memory
-from wildfires.data import Datasets, MonthlyDataset, dummy_lat_lon_cube, ma_cache
+from wildfires.data import Datasets, MonthlyDataset, dummy_lat_lon_cube
 
-from empirical_fire_modelling.cache import cache, custom_get_hash
+from empirical_fire_modelling.cache import DepMACache, cache, custom_get_hash
 
 
 @pytest.fixture
@@ -19,7 +19,7 @@ def dummy_memory():
 
 @pytest.fixture
 def ma_cache_inst(dummy_memory):
-    return ma_cache(memory=dummy_memory, hash_func=custom_get_hash)
+    return DepMACache(memory=dummy_memory, hash_func=custom_get_hash)
 
 
 @pytest.fixture

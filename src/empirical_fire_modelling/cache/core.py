@@ -14,30 +14,161 @@ Calling repr() on Proxy objects is fine, but calling str() will realise them
 
 """
 import logging
-from functools import wraps
+from functools import partial, wraps
+from operator import attrgetter
 
-from wildfires.data import get_memory, ma_cache
-from wildfires.joblib.caching import wrap_decorator
+import joblib
+from wildfires.data import get_memory
+from wildfires.data.ma_cache import Decorated
+from wildfires.joblib.caching import CodeObj
 
 from ..exceptions import InvalidCacheCheck, NotCachedError
 from .custom_backend import custom_get_hash, register_backend
+from .same_call import extract_uniform_args_kwargs
 
 logger = logging.getLogger(__name__)
 
 
-__all__ = ("IN_STORE", "cache", "check_in_store", "custom_get_hash")
+__all__ = (
+    "DepMACache",
+    "IN_STORE",
+    "cache",
+    "check_in_store",
+    "custom_get_hash",
+    "mark_dependency",
+)
 
 # Sentinel value used to denote calls that are already cached.
 IN_STORE = object()
 
 register_backend()
 _memory = get_memory("empirical_fire_modelling", backend="custom", verbose=2)
-_cache = ma_cache(memory=_memory, hash_func=custom_get_hash)
 
 
-# Add presence-checking functionality.
-@wrap_decorator
-def cache(func, ma_cache_inst=_cache):
+class DepMACache:
+    """MaskedArray-capable Joblib Memory decorator.
+
+    This is achieved by looking for MaskedArray instances in certain predefined
+    locations (e.g. within any Dataset object in `args`) and calculating the hash of
+    the data and mask separately before telling Joblib to ignore this object.
+
+    """
+
+    def __init__(self, *, memory=None, hash_func=custom_get_hash):
+        if memory is None:
+            raise ValueError("A Joblib.memory.Memory instance must be given.")
+        self.memory = memory
+        self.hash_func = hash_func
+
+    def __call__(self, *args, dependencies=(), **kwargs):
+        # Calculate a hash for the dependencies.
+        codes = []
+
+        def checkattr(name):
+            def check(obj):
+                try:
+                    attrgetter(name)(obj)
+                    return True
+                except AttributeError:
+                    return False
+
+            return check
+
+        for f in dependencies:
+            code = None
+            for flag_check, retrieve_code in (
+                # TODO: Make this more robust than simply relying on this ordering.
+                # The ordering here is very important since functools.wraps() will
+                # copy the '_dependency' flag.
+                (
+                    checkattr("_orig_func._dependency"),
+                    attrgetter("_orig_func.__code__"),
+                ),
+                (checkattr("_dependency"), attrgetter("__code__")),
+            ):
+                if not flag_check(f):
+                    continue
+                code = retrieve_code(f)
+                break
+            else:
+                raise ValueError("All dependencies must be marked with '_dependency'.")
+            codes.append(code)
+
+        dependency_hash = joblib.hashing.hash(
+            {CodeObj(code).hashable() for code in codes}
+        )
+
+        assert (
+            len(args) == 1 and not kwargs
+        ), "Only a function and dependencies should be given here."
+
+        # The decorator was not configured with additional arguments.
+        return self._decorator(args[0], dependency_hash=dependency_hash)
+
+    def _get_hashed(self, func, *args, dependency_hash=None, **kwargs):
+        assert dependency_hash is not None
+        args, kwargs = extract_uniform_args_kwargs(func, *args, **kwargs)
+
+        # Go through the original arguments and hash the contents manually.
+        args_hashes = []
+        for arg in args:
+            args_hashes.append(self.hash_func(arg))
+
+        # Repeat the above process for the kwargs. The keys should never include
+        # MaskedArray data so we only need to deal with the values.
+        kwargs_hashes = {}
+        for key, arg in kwargs.items():
+            kwargs_hashes[key] = self.hash_func(arg)
+
+        # Include a hashed representation of the original function to ensure we can
+        # tell different functions apart.
+        func_code = CodeObj(func.__code__).hashable()
+
+        return dict(
+            func_code=func_code,
+            args_hashes=args_hashes,
+            kwargs_hashes=kwargs_hashes,
+            dependencies=dependency_hash,
+        )
+
+    def _decorator(self, func, dependency_hash):
+        def inner(hashed, args, kwargs):
+            return func(*args, **kwargs)
+
+        cached_inner = self.memory.cache(ignore=["args", "kwargs"])(inner)
+
+        def bound_get_hashed(*orig_args, **orig_kwargs):
+            return self._get_hashed(
+                func, *orig_args, dependency_hash=dependency_hash, **orig_kwargs
+            )
+
+        @wraps(func)
+        def cached_func(*orig_args, **orig_kwargs):
+            hashed = bound_get_hashed(*orig_args, **orig_kwargs)
+            return cached_inner(hashed, orig_args, orig_kwargs)
+
+        return Decorated(
+            cached_func=cached_func,
+            cached_inner=cached_inner,
+            bound_get_hashed=bound_get_hashed,
+        )
+
+
+_cache = DepMACache(memory=_memory, hash_func=custom_get_hash)
+
+
+def mark_dependency(f):
+    """Decorator which marks a function as a potential dependency.
+
+    Args:
+        f (callable): The dependency to be recorded.
+
+    """
+    f._dependency = True
+    return f
+
+
+def cache(*args, ma_cache_inst=_cache, dependencies=()):
     """A cached function with limited MaskedArray support.
 
     The keyword argument `cache_check` will be added and used automatically to
@@ -49,9 +180,22 @@ def cache(func, ma_cache_inst=_cache):
         func (callable): Function to be cached.
         ma_cache_inst (wildfires.data.ma_cache): Cache instance defining the Joblib
             Memory instance to use for caching. Can be overriden e.g. for testing.
+        dependencies (tuple of callable): Other functions the cached function depends
+            on. If any of these functions change from one run to the next, the cache
+            will be invalidated.
+        is_dependency (bool): If True, this function will be marked as a possible
+            dependency for other functions.
 
     """
-    cached_func = ma_cache_inst(func)
+    if not args:
+        return partial(cache, ma_cache_inst=ma_cache_inst, dependencies=dependencies)
+
+    assert callable(args[0])
+    assert len(args) == 1
+
+    func = args[0]
+
+    cached_func = ma_cache_inst(func, dependencies=dependencies)
 
     @wraps(func)
     def cached_check(*args, cache_check=False, **kwargs):
@@ -61,6 +205,8 @@ def cache(func, ma_cache_inst=_cache):
             return IN_STORE
         # Otherwise continue on as normal.
         return cached_func(*args, **kwargs)
+
+    cached_check._orig_func = func
 
     return cached_check
 
