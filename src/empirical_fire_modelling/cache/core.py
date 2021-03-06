@@ -14,6 +14,7 @@ Calling repr() on Proxy objects is fine, but calling str() will realise them
 
 """
 import logging
+from copy import copy
 from functools import partial, reduce, wraps
 from inspect import signature
 from operator import add, attrgetter
@@ -100,8 +101,12 @@ class DepMACache:
                 raise ValueError("All dependencies must be marked with '_dependency'.")
 
             # Ensure that the hash can be calculated, i.e. that there are no mutable
-            # objects present in the default arguments.
-            hash(signature(func))
+            # objects present in the default arguments. Copy the object since some
+            # object (e.g. immutabledict) will cache the hash resulting from calling
+            # `hash()` (e.g. in a '_hash' attribute), and since the output of Python's
+            # `hash()` function is not constant across sessions, this causes Joblib's
+            # hash to change as well (which we do not want).
+            hash(copy(signature(func)))
             # Finally, calculate the hash using Joblib because the inbuilt hash()
             # function changes its output in between runs.
             dependency_hashes.append(joblib.hashing.hash(signature(func)))
