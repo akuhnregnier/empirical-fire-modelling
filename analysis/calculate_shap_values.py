@@ -16,6 +16,7 @@ from empirical_fire_modelling.cache import check_in_store
 from empirical_fire_modelling.configuration import all_experiments, param_dict
 from empirical_fire_modelling.cx1 import parse_args, run
 from empirical_fire_modelling.data import get_experiment_split_data
+from empirical_fire_modelling.exceptions import NotCachedError
 from empirical_fire_modelling.logging_config import enable_logging
 from empirical_fire_modelling.model import get_model
 
@@ -49,11 +50,18 @@ def shap_values(experiment, index, cache_check=False, **kwargs):
 
     shap_params = get_shap_params(X_train)
 
-    if cache_check:
+    cached_model = True
+    try:
         check_in_store(get_model, X_train, y_train, param_dict)
+    except NotCachedError:
+        cached_model = False
 
-    # Get Dask client that is needed for model fitting.
-    client = get_client(fallback=True, fallback_threaded=True)
+    if not cached_model:
+        if cache_check:
+            raise NotCachedError("Model is not cached.")
+        else:
+            # Get Dask client that is needed for model fitting.
+            client = get_client(fallback=True, fallback_threaded=True)
 
     rf = get_model(X_train, y_train, param_dict)
 
