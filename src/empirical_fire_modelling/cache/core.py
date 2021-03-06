@@ -14,8 +14,9 @@ Calling repr() on Proxy objects is fine, but calling str() will realise them
 
 """
 import logging
-from functools import partial, wraps
-from operator import attrgetter
+from functools import partial, reduce, wraps
+from inspect import signature
+from operator import add, attrgetter
 
 import joblib
 from wildfires.data import get_memory
@@ -60,9 +61,10 @@ class DepMACache:
         self.memory = memory
         self.hash_func = hash_func
 
-    def __call__(self, *args, dependencies=(), **kwargs):
-        # Calculate a hash for the dependencies.
-        codes = []
+    @staticmethod
+    def calculate_dependency_hash(dependencies):
+        """Calculate a hash for the dependencies."""
+        dependency_hashes = []
 
         def checkattr(name):
             def check(obj):
@@ -76,27 +78,35 @@ class DepMACache:
 
         for f in dependencies:
             code = None
-            for flag_check, retrieve_code in (
+            for flag_check, retrieve_func, retrieve_code in (
                 # TODO: Make this more robust than simply relying on this ordering.
                 # The ordering here is very important since functools.wraps() will
                 # copy the '_dependency' flag.
                 (
                     checkattr("_orig_func._dependency"),
+                    attrgetter("_orig_func"),
                     attrgetter("_orig_func.__code__"),
                 ),
-                (checkattr("_dependency"), attrgetter("__code__")),
+                (checkattr("_dependency"), lambda f: f, attrgetter("__code__")),
             ):
                 if not flag_check(f):
                     continue
+
+                func = retrieve_func(f)
                 code = retrieve_code(f)
+
                 break
             else:
                 raise ValueError("All dependencies must be marked with '_dependency'.")
-            codes.append(code)
 
-        dependency_hash = joblib.hashing.hash(
-            {CodeObj(code).hashable() for code in codes}
-        )
+            dependency_hashes.append(hash(signature(func)))
+            dependency_hashes.append(joblib.hashing.hash(CodeObj(code).hashable()))
+
+        dependency_hash = joblib.hashing.hash(dependency_hashes)
+        return dependency_hash
+
+    def __call__(self, *args, dependencies=(), **kwargs):
+        dependency_hash = self.calculate_dependency_hash(dependencies)
 
         assert (
             len(args) == 1 and not kwargs
@@ -195,7 +205,20 @@ def cache(*args, ma_cache_inst=_cache, dependencies=()):
 
     func = args[0]
 
+    # Update dependencies to enable chaining of dependencies.
+    dependencies = (
+        *dependencies,
+        *reduce(
+            add,
+            (list(getattr(dep_func, "_dependencies", [])) for dep_func in dependencies),
+            [],
+        ),
+    )
+
     cached_func = ma_cache_inst(func, dependencies=dependencies)
+
+    if dependencies:
+        print(list(getattr(dependencies[0], "_dependencies", [])))
 
     @wraps(func)
     def cached_check(*args, cache_check=False, **kwargs):
@@ -207,6 +230,7 @@ def cache(*args, ma_cache_inst=_cache, dependencies=()):
         return cached_func(*args, **kwargs)
 
     cached_check._orig_func = func
+    cached_check._dependencies = dependencies
 
     return cached_check
 

@@ -25,7 +25,7 @@ from wildfires.data import (
     dataset_times,
 )
 
-from ..cache import cache, check_in_store
+from ..cache import cache, mark_dependency
 from ..configuration import (
     experiment_name_dict,
     get_filled_names,
@@ -41,6 +41,7 @@ __all__ = ("get_data", "get_experiment_split_data", "get_split_data")
 
 
 @cache
+@mark_dependency
 def _get_processed_data(shift_months=lags[1:]):
     """Low-level function which carries out the basic data processing."""
     target_variable = "GFED4 BA"
@@ -223,6 +224,7 @@ def _get_processed_data(shift_months=lags[1:]):
 
 
 @cache
+@mark_dependency
 def _get_offset_data(
     endog_data,
     exog_data,
@@ -281,7 +283,9 @@ def _get_offset_data(
     )
 
 
-def get_data(experiment="ALL", cache_check=False):
+@cache(dependencies=(_get_processed_data, _get_offset_data))
+@mark_dependency
+def get_data(experiment="ALL"):
     """Get data for a given experiment."""
     experiment = experiment_name_dict.get(experiment, experiment)
     if experiment not in experiment_name_dict.values():
@@ -289,9 +293,7 @@ def get_data(experiment="ALL", cache_check=False):
         raise ValueError(
             f"The given experiment '{experiment}' was not found in:\n{name_dict_str}."
         )
-    if cache_check:
-        check_in_store(_get_processed_data)
-        return check_in_store(_get_offset_data, *_get_processed_data())
+
     (
         endog_data,
         exog_data,
@@ -327,6 +329,7 @@ def get_data(experiment="ALL", cache_check=False):
 
 
 @cache
+@mark_dependency
 def get_split_data(
     exog_data, endog_data, train_test_split_kwargs=train_test_split_kwargs
 ):
@@ -336,8 +339,7 @@ def get_split_data(
     return X_train, X_test, y_train, y_test
 
 
-def get_experiment_split_data(experiment, cache_check=False):
-    if cache_check:
-        check_in_store(get_data, experiment=experiment)
+@cache(dependencies=(get_split_data,))
+def get_experiment_split_data(experiment):
     endog_data, exog_data = get_data(experiment=experiment)[:2]
-    return get_split_data(exog_data, endog_data, cache_check=cache_check)
+    return get_split_data(exog_data, endog_data)
