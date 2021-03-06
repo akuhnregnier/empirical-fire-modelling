@@ -3,6 +3,7 @@
 import re
 from pathlib import Path
 
+from immutabledict import immutabledict
 from wildfires.utils import shorten_features
 
 
@@ -37,9 +38,11 @@ def get_offset_features(features):
     return offset_features
 
 
-shared_figure_saver_kwargs = dict(debug=True)
-figure_saver_kwargs = {**shared_figure_saver_kwargs, **dict(dpi=300)}
-map_figure_saver_kwargs = {**shared_figure_saver_kwargs, **dict(dpi=1200)}
+shared_figure_saver_kwargs = immutabledict(debug=True)
+figure_saver_kwargs = immutabledict({**shared_figure_saver_kwargs, **dict(dpi=300)})
+map_figure_saver_kwargs = immutabledict(
+    {**shared_figure_saver_kwargs, **dict(dpi=1200)}
+)
 figure_save_dir = Path("~") / "tmp" / "empirical_fire_modelling"
 
 # Investigated lags.
@@ -69,279 +72,291 @@ def get_filled_names(names):
     return filled
 
 
-main_experiments = ["all", "15_most_important", "no_temporal_shifts", "best_top_15"]
+main_experiments = ("all", "15_most_important", "no_temporal_shifts", "best_top_15")
 
-experiment_name_dict = {
-    "all": "ALL",
-    "15_most_important": "TOP15",
-    "no_temporal_shifts": "CURR",
-    "fapar_only": "15VEG_FAPAR",
-    "lai_only": "15VEG_LAI",
-    "sif_only": "15VEG_SIF",
-    "vod_only": "15VEG_VOD",
-    "lagged_fapar_only": "CURRDD_FAPAR",
-    "lagged_lai_only": "CURRDD_LAI",
-    "lagged_sif_only": "CURRDD_SIF",
-    "lagged_vod_only": "CURRDD_VOD",
-    "best_top_15": "BEST15",
-}
+experiment_name_dict = immutabledict(
+    {
+        "all": "ALL",
+        "15_most_important": "TOP15",
+        "no_temporal_shifts": "CURR",
+        "fapar_only": "15VEG_FAPAR",
+        "lai_only": "15VEG_LAI",
+        "sif_only": "15VEG_SIF",
+        "vod_only": "15VEG_VOD",
+        "lagged_fapar_only": "CURRDD_FAPAR",
+        "lagged_lai_only": "CURRDD_LAI",
+        "lagged_sif_only": "CURRDD_SIF",
+        "lagged_vod_only": "CURRDD_VOD",
+        "best_top_15": "BEST15",
+    }
+)
 
-all_experiments = list(experiment_name_dict)
+all_experiments = tuple(experiment_name_dict)
 
-selected_features = {
-    "ALL": None,  # Sentinel value indicating all values are selected.
-    "CURR": tuple(
-        get_filled_names(
-            (
-                "Dry Day Period",
-                "SWI(1)",
-                "Max Temp",
-                "Diurnal Temp Range",
-                "lightning",
-                "pftCrop",
-                "popd",
-                "pftHerb",
-                "ShrubAll",
-                "TreeAll",
-                "AGB Tree",
-                "VOD Ku-band",
-                "FAPAR",
-                "LAI",
-                "SIF",
+selected_features = immutabledict(
+    {
+        "ALL": None,  # Sentinel value indicating all values are selected.
+        "CURR": tuple(
+            get_filled_names(
+                (
+                    "Dry Day Period",
+                    "SWI(1)",
+                    "Max Temp",
+                    "Diurnal Temp Range",
+                    "lightning",
+                    "pftCrop",
+                    "popd",
+                    "pftHerb",
+                    "ShrubAll",
+                    "TreeAll",
+                    "AGB Tree",
+                    "VOD Ku-band",
+                    "FAPAR",
+                    "LAI",
+                    "SIF",
+                )
             )
-        )
-    ),
-    "BEST15": (
-        "Dry Day Period",
-        "Dry Day Period -1 Month",
-        "Dry Day Period -3 Month",
-        "Dry Day Period -6 Month",
-        "Dry Day Period -9 Month",
-        "Max Temp",
-        "pftCrop",
-        "popd",
-        "pftHerb",
-        "AGB Tree",
-        "VOD Ku-band 50P 4k -9 Month",
-        "FAPAR 50P 4k",
-        "FAPAR 50P 4k -1 Month",
-        "LAI 50P 4k -3 Month",
-        "SIF 50P 4k -6 Month",
-    ),
-    "TOP15": (
-        "Dry Day Period",
-        "FAPAR 50P 4k",
-        "Max Temp",
-        "VOD Ku-band 50P 4k -3 Month",
-        "LAI 50P 4k -1 Month",
-        "Dry Day Period -1 Month",
-        "Dry Day Period -3 Month",
-        "SIF 50P 4k",
-        "LAI 50P 4k -3 Month",
-        "VOD Ku-band 50P 4k -1 Month",
-        "VOD Ku-band 50P 4k",
-        "FAPAR 50P 4k -1 Month",
-        "pftCrop",
-        "SIF 50P 4k -9 Month",
-        "popd",
-    ),
-    "15VEG_FAPAR": (
-        "Dry Day Period",
-        "Dry Day Period -1 Month",
-        "Dry Day Period -3 Month",
-        "Dry Day Period -6 Month",
-        "Dry Day Period -9 Month",
-        "Max Temp",
-        "pftCrop",
-        "popd",
-        "pftHerb",
-        "AGB Tree",
-        "FAPAR 50P 4k",
-        "FAPAR 50P 4k -1 Month",
-        "FAPAR 50P 4k -3 Month",
-        "FAPAR 50P 4k -6 Month",
-        "FAPAR 50P 4k -9 Month",
-    ),
-    "15VEG_LAI": (
-        "Dry Day Period",
-        "Dry Day Period -1 Month",
-        "Dry Day Period -3 Month",
-        "Dry Day Period -6 Month",
-        "Dry Day Period -9 Month",
-        "Max Temp",
-        "pftCrop",
-        "popd",
-        "pftHerb",
-        "AGB Tree",
-        "LAI 50P 4k",
-        "LAI 50P 4k -1 Month",
-        "LAI 50P 4k -3 Month",
-        "LAI 50P 4k -6 Month",
-        "LAI 50P 4k -9 Month",
-    ),
-    "15VEG_SIF": (
-        "Dry Day Period",
-        "Dry Day Period -1 Month",
-        "Dry Day Period -3 Month",
-        "Dry Day Period -6 Month",
-        "Dry Day Period -9 Month",
-        "Max Temp",
-        "pftCrop",
-        "popd",
-        "pftHerb",
-        "AGB Tree",
-        "SIF 50P 4k",
-        "SIF 50P 4k -1 Month",
-        "SIF 50P 4k -3 Month",
-        "SIF 50P 4k -6 Month",
-        "SIF 50P 4k -9 Month",
-    ),
-    "15VEG_VOD": (
-        "Dry Day Period",
-        "Dry Day Period -1 Month",
-        "Dry Day Period -3 Month",
-        "Dry Day Period -6 Month",
-        "Dry Day Period -9 Month",
-        "Max Temp",
-        "pftCrop",
-        "popd",
-        "pftHerb",
-        "AGB Tree",
-        "VOD Ku-band 50P 4k",
-        "VOD Ku-band 50P 4k -1 Month",
-        "VOD Ku-band 50P 4k -3 Month",
-        "VOD Ku-band 50P 4k -6 Month",
-        "VOD Ku-band 50P 4k -9 Month",
-    ),
-    "CURRDD_FAPAR": (
-        "Dry Day Period",
-        "Max Temp",
-        "TreeAll",
-        "SWI(1) 50P 4k",
-        "pftHerb",
-        "Diurnal Temp Range",
-        "ShrubAll",
-        "AGB Tree",
-        "pftCrop",
-        "lightning",
-        "FAPAR 50P 4k",
-        "FAPAR 50P 4k -1 Month",
-        "FAPAR 50P 4k -3 Month",
-        "FAPAR 50P 4k -6 Month",
-        "FAPAR 50P 4k -9 Month",
-    ),
-    "CURRDD_LAI": (
-        "Dry Day Period",
-        "Max Temp",
-        "TreeAll",
-        "SWI(1) 50P 4k",
-        "pftHerb",
-        "Diurnal Temp Range",
-        "ShrubAll",
-        "AGB Tree",
-        "pftCrop",
-        "lightning",
-        "LAI 50P 4k",
-        "LAI 50P 4k -1 Month",
-        "LAI 50P 4k -3 Month",
-        "LAI 50P 4k -6 Month",
-        "LAI 50P 4k -9 Month",
-    ),
-    "CURRDD_SIF": (
-        "Dry Day Period",
-        "Max Temp",
-        "TreeAll",
-        "SWI(1) 50P 4k",
-        "pftHerb",
-        "Diurnal Temp Range",
-        "ShrubAll",
-        "AGB Tree",
-        "pftCrop",
-        "lightning",
-        "SIF 50P 4k",
-        "SIF 50P 4k -1 Month",
-        "SIF 50P 4k -3 Month",
-        "SIF 50P 4k -6 Month",
-        "SIF 50P 4k -9 Month",
-    ),
-    "CURRDD_VOD": (
-        "Dry Day Period",
-        "Max Temp",
-        "TreeAll",
-        "SWI(1) 50P 4k",
-        "pftHerb",
-        "Diurnal Temp Range",
-        "ShrubAll",
-        "AGB Tree",
-        "pftCrop",
-        "lightning",
-        "VOD Ku-band 50P 4k",
-        "VOD Ku-band 50P 4k -1 Month",
-        "VOD Ku-band 50P 4k -3 Month",
-        "VOD Ku-band 50P 4k -6 Month",
-        "VOD Ku-band 50P 4k -9 Month",
-    ),
-}
+        ),
+        "BEST15": (
+            "Dry Day Period",
+            "Dry Day Period -1 Month",
+            "Dry Day Period -3 Month",
+            "Dry Day Period -6 Month",
+            "Dry Day Period -9 Month",
+            "Max Temp",
+            "pftCrop",
+            "popd",
+            "pftHerb",
+            "AGB Tree",
+            "VOD Ku-band 50P 4k -9 Month",
+            "FAPAR 50P 4k",
+            "FAPAR 50P 4k -1 Month",
+            "LAI 50P 4k -3 Month",
+            "SIF 50P 4k -6 Month",
+        ),
+        "TOP15": (
+            "Dry Day Period",
+            "FAPAR 50P 4k",
+            "Max Temp",
+            "VOD Ku-band 50P 4k -3 Month",
+            "LAI 50P 4k -1 Month",
+            "Dry Day Period -1 Month",
+            "Dry Day Period -3 Month",
+            "SIF 50P 4k",
+            "LAI 50P 4k -3 Month",
+            "VOD Ku-band 50P 4k -1 Month",
+            "VOD Ku-band 50P 4k",
+            "FAPAR 50P 4k -1 Month",
+            "pftCrop",
+            "SIF 50P 4k -9 Month",
+            "popd",
+        ),
+        "15VEG_FAPAR": (
+            "Dry Day Period",
+            "Dry Day Period -1 Month",
+            "Dry Day Period -3 Month",
+            "Dry Day Period -6 Month",
+            "Dry Day Period -9 Month",
+            "Max Temp",
+            "pftCrop",
+            "popd",
+            "pftHerb",
+            "AGB Tree",
+            "FAPAR 50P 4k",
+            "FAPAR 50P 4k -1 Month",
+            "FAPAR 50P 4k -3 Month",
+            "FAPAR 50P 4k -6 Month",
+            "FAPAR 50P 4k -9 Month",
+        ),
+        "15VEG_LAI": (
+            "Dry Day Period",
+            "Dry Day Period -1 Month",
+            "Dry Day Period -3 Month",
+            "Dry Day Period -6 Month",
+            "Dry Day Period -9 Month",
+            "Max Temp",
+            "pftCrop",
+            "popd",
+            "pftHerb",
+            "AGB Tree",
+            "LAI 50P 4k",
+            "LAI 50P 4k -1 Month",
+            "LAI 50P 4k -3 Month",
+            "LAI 50P 4k -6 Month",
+            "LAI 50P 4k -9 Month",
+        ),
+        "15VEG_SIF": (
+            "Dry Day Period",
+            "Dry Day Period -1 Month",
+            "Dry Day Period -3 Month",
+            "Dry Day Period -6 Month",
+            "Dry Day Period -9 Month",
+            "Max Temp",
+            "pftCrop",
+            "popd",
+            "pftHerb",
+            "AGB Tree",
+            "SIF 50P 4k",
+            "SIF 50P 4k -1 Month",
+            "SIF 50P 4k -3 Month",
+            "SIF 50P 4k -6 Month",
+            "SIF 50P 4k -9 Month",
+        ),
+        "15VEG_VOD": (
+            "Dry Day Period",
+            "Dry Day Period -1 Month",
+            "Dry Day Period -3 Month",
+            "Dry Day Period -6 Month",
+            "Dry Day Period -9 Month",
+            "Max Temp",
+            "pftCrop",
+            "popd",
+            "pftHerb",
+            "AGB Tree",
+            "VOD Ku-band 50P 4k",
+            "VOD Ku-band 50P 4k -1 Month",
+            "VOD Ku-band 50P 4k -3 Month",
+            "VOD Ku-band 50P 4k -6 Month",
+            "VOD Ku-band 50P 4k -9 Month",
+        ),
+        "CURRDD_FAPAR": (
+            "Dry Day Period",
+            "Max Temp",
+            "TreeAll",
+            "SWI(1) 50P 4k",
+            "pftHerb",
+            "Diurnal Temp Range",
+            "ShrubAll",
+            "AGB Tree",
+            "pftCrop",
+            "lightning",
+            "FAPAR 50P 4k",
+            "FAPAR 50P 4k -1 Month",
+            "FAPAR 50P 4k -3 Month",
+            "FAPAR 50P 4k -6 Month",
+            "FAPAR 50P 4k -9 Month",
+        ),
+        "CURRDD_LAI": (
+            "Dry Day Period",
+            "Max Temp",
+            "TreeAll",
+            "SWI(1) 50P 4k",
+            "pftHerb",
+            "Diurnal Temp Range",
+            "ShrubAll",
+            "AGB Tree",
+            "pftCrop",
+            "lightning",
+            "LAI 50P 4k",
+            "LAI 50P 4k -1 Month",
+            "LAI 50P 4k -3 Month",
+            "LAI 50P 4k -6 Month",
+            "LAI 50P 4k -9 Month",
+        ),
+        "CURRDD_SIF": (
+            "Dry Day Period",
+            "Max Temp",
+            "TreeAll",
+            "SWI(1) 50P 4k",
+            "pftHerb",
+            "Diurnal Temp Range",
+            "ShrubAll",
+            "AGB Tree",
+            "pftCrop",
+            "lightning",
+            "SIF 50P 4k",
+            "SIF 50P 4k -1 Month",
+            "SIF 50P 4k -3 Month",
+            "SIF 50P 4k -6 Month",
+            "SIF 50P 4k -9 Month",
+        ),
+        "CURRDD_VOD": (
+            "Dry Day Period",
+            "Max Temp",
+            "TreeAll",
+            "SWI(1) 50P 4k",
+            "pftHerb",
+            "Diurnal Temp Range",
+            "ShrubAll",
+            "AGB Tree",
+            "pftCrop",
+            "lightning",
+            "VOD Ku-band 50P 4k",
+            "VOD Ku-band 50P 4k -1 Month",
+            "VOD Ku-band 50P 4k -3 Month",
+            "VOD Ku-band 50P 4k -6 Month",
+            "VOD Ku-band 50P 4k -9 Month",
+        ),
+    }
+)
 
-offset_selected_features = {
-    exp: get_offset_features(features) for exp, features in selected_features.items()
-}
+offset_selected_features = immutabledict(
+    {exp: get_offset_features(features) for exp, features in selected_features.items()}
+)
 
 assert set(offset_selected_features) == set(
     experiment_name_dict.values()
 ), "All experiments should define their selected features."
 
 
-units = {
-    "DD": "days",
-    "SWI": r"$\mathrm{m}^3 \mathrm{m}^{-3}$",
-    "MaxT": "K",
-    "DTR": "K",
-    "Lightning": r"$\mathrm{strokes}\ \mathrm{km}^{-2}$",
-    "CROP": "1",
-    "POPD": r"$\mathrm{inh}\ \mathrm{km}^{-2}$",
-    "HERB": "1",
-    "SHRUB": "1",
-    "TREE": "1",
-    "AGB": "r$\mathrm{kg}\ \mathrm{m}^{-2}$",
-    "VOD": "1",
-    "FAPAR": "1",
-    "LAI": r"$\mathrm{m}^2\ \mathrm{m}^{-2}$",
-    "SIF": "r$\mathrm{mW}\ \mathrm{m}^{-2}\ \mathrm{sr}^{-1}\ \mathrm{nm}^{-1}$",
-}
+units = immutabledict(
+    {
+        "DD": "days",
+        "SWI": r"$\mathrm{m}^3 \mathrm{m}^{-3}$",
+        "MaxT": "K",
+        "DTR": "K",
+        "Lightning": r"$\mathrm{strokes}\ \mathrm{km}^{-2}$",
+        "CROP": "1",
+        "POPD": r"$\mathrm{inh}\ \mathrm{km}^{-2}$",
+        "HERB": "1",
+        "SHRUB": "1",
+        "TREE": "1",
+        "AGB": "r$\mathrm{kg}\ \mathrm{m}^{-2}$",
+        "VOD": "1",
+        "FAPAR": "1",
+        "LAI": r"$\mathrm{m}^2\ \mathrm{m}^{-2}$",
+        "SIF": "r$\mathrm{mW}\ \mathrm{m}^{-2}\ \mathrm{sr}^{-1}\ \mathrm{nm}^{-1}$",
+    }
+)
 
 # SHAP parameters.
 # XXX: original value 2000 (~6 hrs per job?)
 shap_job_samples = 20  # Samples per job.
 
-shap_interact_params = {
-    "job_samples": 50,  # Samples per job.
-    "max_index": 5999,  # Maximum job array index (inclusive).
-}
+shap_interact_params = immutabledict(
+    {
+        "job_samples": 50,  # Samples per job.
+        "max_index": 5999,  # Maximum job array index (inclusive).
+    }
+)
 
 # Specify common RF (training) params.
 n_splits = 5
 
-default_param_dict = {"random_state": 1, "bootstrap": True, "oob_score": True}
+default_param_dict = immutabledict(
+    {"random_state": 1, "bootstrap": True, "oob_score": True}
+)
 
-param_dict = {**default_param_dict}
+param_dict = immutabledict({**default_param_dict})
 
 # Training and validation test splitting.
-train_test_split_kwargs = dict(random_state=1, shuffle=True, test_size=0.3)
+train_test_split_kwargs = immutabledict(random_state=1, shuffle=True, test_size=0.3)
 
-feature_categories = {
-    # `get_filled_names` may need to be called here if needed.
-    "meteorology": [
-        "Dry Day Period",
-        "SWI(1)",
-        "Max Temp",
-        "Diurnal Temp Range",
-        "lightning",
-    ],
-    "human": ["pftCrop", "popd"],
-    "landcover": ["pftHerb", "ShrubAll", "TreeAll", "AGB Tree"],
-    "vegetation": ["VOD Ku-band", "FAPAR", "LAI", "SIF"],
-}
+feature_categories = immutabledict(
+    {
+        # `get_filled_names` may need to be called here if needed.
+        "meteorology": (
+            "Dry Day Period",
+            "SWI(1)",
+            "Max Temp",
+            "Diurnal Temp Range",
+            "lightning",
+        ),
+        "human": ("pftCrop", "popd"),
+        "landcover": ("pftHerb", "ShrubAll", "TreeAll", "AGB Tree"),
+        "vegetation": ("VOD Ku-band", "FAPAR", "LAI", "SIF"),
+    }
+)
 
 feature_order = {}
 no_fill_feature_order = {}
@@ -357,3 +372,6 @@ for category, entries in feature_categories.items():
 # If BA is included, position it first.
 no_fill_feature_order["GFED4 BA"] = -1
 no_fill_feature_order["BA"] = -2
+
+feature_order = immutabledict(feature_order)
+no_fill_feature_order = immutabledict(no_fill_feature_order)

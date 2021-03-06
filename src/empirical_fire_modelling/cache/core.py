@@ -99,7 +99,12 @@ class DepMACache:
             else:
                 raise ValueError("All dependencies must be marked with '_dependency'.")
 
-            dependency_hashes.append(hash(signature(func)))
+            # Ensure that the hash can be calculated, i.e. that there are no mutable
+            # objects present in the default arguments.
+            hash(signature(func))
+            # Finally, calculate the hash using Joblib because the inbuilt hash()
+            # function changes its output in between runs.
+            dependency_hashes.append(joblib.hashing.hash(signature(func)))
             dependency_hashes.append(joblib.hashing.hash(CodeObj(code).hashable()))
 
         dependency_hash = joblib.hashing.hash(dependency_hashes)
@@ -216,9 +221,6 @@ def cache(*args, ma_cache_inst=_cache, dependencies=()):
     )
 
     cached_func = ma_cache_inst(func, dependencies=dependencies)
-
-    if dependencies:
-        print(list(getattr(dependencies[0], "_dependencies", [])))
 
     @wraps(func)
     def cached_check(*args, cache_check=False, **kwargs):

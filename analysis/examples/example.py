@@ -23,7 +23,7 @@ if "TQDMAUTO" in os.environ:
 else:
     pass
 
-mpl.rc_file(Path(__file__).resolve().parent / "matplotlibrc")
+mpl.rc_file(Path(__file__).resolve().parent.parent / "matplotlibrc")
 
 loguru_logger.enable("alepython")
 loguru_logger.remove()

@@ -11,10 +11,15 @@ from empirical_fire_modelling.cache import DepMACache, cache, custom_get_hash
 
 
 @pytest.fixture
-def dummy_memory():
+def tmp_dir():
     tmp_dir = tempfile.TemporaryDirectory()
-    yield Memory(tmp_dir.name, backend="custom")
+    yield tmp_dir.name
     tmp_dir.cleanup()
+
+
+@pytest.fixture
+def dummy_memory(tmp_dir):
+    return Memory(tmp_dir, backend="custom")
 
 
 @pytest.fixture
