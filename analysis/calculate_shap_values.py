@@ -9,16 +9,14 @@ from pathlib import Path
 import matplotlib as mpl
 import numpy as np
 from loguru import logger as loguru_logger
-from wildfires.dask_cx1 import get_client
 
 from empirical_fire_modelling.analysis.shap import get_shap_params, get_shap_values
 from empirical_fire_modelling.cache import check_in_store
 from empirical_fire_modelling.configuration import all_experiments, param_dict
 from empirical_fire_modelling.cx1 import parse_args, run
 from empirical_fire_modelling.data import get_experiment_split_data
-from empirical_fire_modelling.exceptions import NotCachedError
 from empirical_fire_modelling.logging_config import enable_logging
-from empirical_fire_modelling.model import get_model
+from empirical_fire_modelling.model import call_get_model_check_cache
 
 if "TQDMAUTO" in os.environ:
     from tqdm.auto import tqdm
@@ -50,20 +48,9 @@ def shap_values(experiment, index, cache_check=False, **kwargs):
 
     shap_params = get_shap_params(X_train)
 
-    cached_model = True
-    try:
-        check_in_store(get_model, X_train, y_train, param_dict)
-    except NotCachedError:
-        cached_model = False
-
-    if not cached_model:
-        if cache_check:
-            raise NotCachedError("Model is not cached.")
-        else:
-            # Get Dask client that is needed for model fitting.
-            client = get_client(fallback=True, fallback_threaded=True)
-
-    rf = get_model(X_train, y_train, param_dict)
+    rf, client = call_get_model_check_cache(
+        X_train, y_train, param_dict, cache_check=cache_check
+    )
 
     calc_shap_args = (
         rf,

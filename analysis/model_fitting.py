@@ -8,14 +8,13 @@ from pathlib import Path
 
 import matplotlib as mpl
 from loguru import logger as loguru_logger
-from wildfires.dask_cx1 import get_client
 
-from empirical_fire_modelling.cache import check_in_store
+from empirical_fire_modelling.cache import IN_STORE, check_in_store
 from empirical_fire_modelling.configuration import all_experiments, param_dict
 from empirical_fire_modelling.cx1 import run
 from empirical_fire_modelling.data import get_experiment_split_data
 from empirical_fire_modelling.logging_config import enable_logging
-from empirical_fire_modelling.model import get_model
+from empirical_fire_modelling.model import call_get_model_check_cache
 
 if "TQDMAUTO" in os.environ:
     pass
@@ -45,13 +44,12 @@ def fit_experiment_model(experiment, cache_check=False, **kwargs):
         check_in_store(get_experiment_split_data, experiment)
     X_train, X_test, y_train, y_test = get_experiment_split_data(experiment)
 
+    model, client = call_get_model_check_cache(
+        X_train, y_train, param_dict, cache_check=cache_check
+    )
     if cache_check:
-        return check_in_store(get_model, X_train, y_train, param_dict)
-
-    # Get Dask client that is needed for model fitting.
-    client = get_client(fallback=True, fallback_threaded=True)
-
-    return get_model(X_train, y_train, param_dict)
+        return IN_STORE
+    return model
 
 
 if __name__ == "__main__":
