@@ -2,7 +2,7 @@
 
 import pytest
 
-from empirical_fire_modelling.cache import check_in_store, mark_dependency
+from empirical_fire_modelling.cache import mark_dependency
 from empirical_fire_modelling.exceptions import NotCachedError
 
 from .utils import *  # noqa
@@ -35,8 +35,8 @@ def test_dependencies(test_cache):
     def f2(x):
         return f(x) + 10
 
-    assert check_in_store(f, 1)
-    assert check_in_store(f2, 1)
+    assert f.check_in_store(1)
+    assert f2.check_in_store(1)
 
     # However, redefining `f` should invalidate both cache entries.
 
@@ -50,10 +50,10 @@ def test_dependencies(test_cache):
         return f(x) + 10
 
     with pytest.raises(NotCachedError):
-        check_in_store(f, 1)
+        f.check_in_store(1)
 
     with pytest.raises(NotCachedError):
-        check_in_store(f2, 1)
+        f2.check_in_store(1)
 
     assert f(1) == 3
     assert f2(1) == 13
@@ -93,8 +93,8 @@ def test_dependencies_2(test_cache):
     def f2(x):
         return f(x) + 10
 
-    assert check_in_store(f, 1)
-    assert check_in_store(f2, 1)
+    assert f.check_in_store(1)
+    assert f2.check_in_store(1)
 
     # However, redefining `f` should invalidate both cache entries.
 
@@ -109,10 +109,10 @@ def test_dependencies_2(test_cache):
         return f(x) + 10
 
     with pytest.raises(NotCachedError):
-        check_in_store(f, 1)
+        f.check_in_store(1)
 
     with pytest.raises(NotCachedError):
-        check_in_store(f2, 1)
+        f2.check_in_store(1)
 
     assert f(1) == 3
     assert f2(1) == 13
@@ -147,8 +147,8 @@ def test_dependencies_default_args(test_cache):
     def f2(x):
         return f(x) + 10
 
-    assert check_in_store(f, 1)
-    assert check_in_store(f2, 1)
+    assert f.check_in_store(1)
+    assert f2.check_in_store(1)
 
     # However, redefining `f` should invalidate both cache entries.
 
@@ -162,10 +162,10 @@ def test_dependencies_default_args(test_cache):
     def f2(x):
         return f(x) + 10
 
-    assert check_in_store(f, 1)
+    assert f.check_in_store(1)
 
     with pytest.raises(NotCachedError):
-        check_in_store(f2, 1)
+        f2.check_in_store(1)
 
     assert f(1) == 2
     assert f2(1) == 12
@@ -211,9 +211,8 @@ def test_chained_dependencies(test_cache):
     def f2(x):
         return f1(x) + 100
 
-    assert check_in_store(f, 1)
-    assert check_in_store(f1, 1)
-    assert check_in_store(f2, 1)
+    for func in (f, f1, f2):
+        assert func.check_in_store(1)
 
     # However, redefining `f` should invalidate all cache entries.
 
@@ -234,7 +233,7 @@ def test_chained_dependencies(test_cache):
 
     for func in (f, f1, f2):
         with pytest.raises(NotCachedError):
-            check_in_store(func, 1)
+            func.check_in_store(1)
 
     assert f(1) == 3
     assert f1(1) == -7
@@ -293,10 +292,8 @@ def test_multiple_chained_dependencies(test_cache, redefine):
     def f2(x):
         return f1(x) + 100
 
-    assert check_in_store(f, 1)
-    assert check_in_store(f0, 1)
-    assert check_in_store(f1, 1)
-    assert check_in_store(f2, 1)
+    for func in (f, f0, f1, f2):
+        assert func.check_in_store(1)
 
     # However, redefining either `f` or `f0` should invalidate all cache entries.
 
@@ -348,7 +345,7 @@ def test_multiple_chained_dependencies(test_cache, redefine):
 
     for func in changed_funcs:
         with pytest.raises(NotCachedError):
-            check_in_store(func, 1)
+            func.check_in_store(1)
 
     if redefine == "f":
         assert f(1) == 3

@@ -21,7 +21,8 @@ from joblib._store_backends import (
     rm_subdirs,
 )
 from lazy_object_proxy.slots import Proxy
-from wildfires.data import get_hash
+
+from .hashing import get_hash
 
 logger = logging.getLogger(__name__)
 

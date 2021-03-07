@@ -12,7 +12,7 @@ from loguru import logger as loguru_logger
 
 from empirical_fire_modelling.analysis.shap import get_shap_params, get_shap_values
 from empirical_fire_modelling.cache import check_in_store
-from empirical_fire_modelling.configuration import all_experiments, param_dict
+from empirical_fire_modelling.configuration import Experiment, param_dict
 from empirical_fire_modelling.cx1 import parse_args, run
 from empirical_fire_modelling.data import get_experiment_split_data
 from empirical_fire_modelling.logging_config import enable_logging
@@ -74,7 +74,7 @@ if __name__ == "__main__":
     args = [[], []]
 
     for experiment in tqdm(
-        all_experiments[: 1 if parse_args().single else None],
+        list(Experiment)[: 1 if parse_args().single else None],
         desc="Preparing SHAP arguments",
         disable=not parse_args().verbose,
     ):

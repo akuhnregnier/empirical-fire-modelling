@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """Creation of the data structures used for fitting."""
-import re
 from datetime import datetime
 from functools import reduce
-from pprint import pformat
+from operator import attrgetter, methodcaller
 
 import numpy as np
+import pandas as pd
 from dateutil.relativedelta import relativedelta
 from sklearn.model_selection import train_test_split
 from wildfires.analysis import data_processing
@@ -25,24 +25,42 @@ from wildfires.data import (
     dataset_times,
 )
 
+from .. import variable
 from ..cache import cache, mark_dependency
-from ..configuration import (
-    experiment_name_dict,
-    get_filled_names,
-    lags,
-    offset_selected_features,
-    selected_features,
-    st_k,
-    st_persistent_perc,
-    train_test_split_kwargs,
-)
+from ..configuration import Experiment, selected_features, train_test_split_kwargs
 
 __all__ = ("get_data", "get_experiment_split_data", "get_split_data")
 
 
+def _pandas_string_labels_to_variables(x):
+    """Transform series names or columns labels to variable.Variable instances."""
+    all_variables = tuple(list(selected_features[Experiment.ALL]) + [variable.GFED4_BA])
+    all_variable_names = tuple(map(attrgetter("raw_filled"), all_variables))
+    if isinstance(x, pd.Series):
+        x.name = all_variables[all_variable_names.index(x.name)]
+    elif isinstance(x, pd.DataFrame):
+        x.columns = [all_variables[all_variable_names.index(c)] for c in x.columns]
+    else:
+        raise TypeError(
+            f"Expected either a pandas.Series or pandas.DataFrame. Got '{x}'."
+        )
+
+
 @cache
 @mark_dependency
-def _get_processed_data(shift_months=lags[1:]):
+def _get_processed_data(
+    shift_months=variable.lags[1:],
+    persistent_perc=variable.st_persistent_perc,
+    season_trend_k=variable.st_k,
+    all_inst_features=selected_features[Experiment.CURR],
+    shifted_variables=variable.shifted_variables,
+    _variable_names=tuple(
+        map(
+            attrgetter("name", "filled", "raw", "raw_filled"),
+            selected_features[Experiment.ALL],
+        )
+    ),
+):
     """Low-level function which carries out the basic data processing."""
     target_variable = "GFED4 BA"
 
@@ -62,19 +80,23 @@ def _get_processed_data(shift_months=lags[1:]):
 
     # Datasets subject to temporal interpolation (filling).
     temporal_interp_datasets = [
-        Datasets(Copernicus_SWI()).select_variables(("SWI(1)",)).dataset
+        Datasets(Copernicus_SWI()).select_variables((variable.SWI.name,)).dataset
     ]
 
     # Datasets subject to temporal interpolation and shifting.
     shift_and_interp_datasets = [
-        Datasets(MOD15A2H_LAI_fPAR()).select_variables(("FAPAR", "LAI")).dataset,
-        Datasets(VODCA()).select_variables(("VOD Ku-band",)).dataset,
-        Datasets(GlobFluo_SIF()).select_variables(("SIF",)).dataset,
+        Datasets(MOD15A2H_LAI_fPAR())
+        .select_variables((variable.FAPAR.name, variable.LAI.name))
+        .dataset,
+        Datasets(VODCA()).select_variables((variable.VOD.name,)).dataset,
+        Datasets(GlobFluo_SIF()).select_variables((variable.SIF.name,)).dataset,
     ]
 
     # Datasets subject to temporal shifting.
     datasets_to_shift = [
-        Datasets(ERA5_DryDayPeriod()).select_variables(("Dry Day Period",)).dataset
+        Datasets(ERA5_DryDayPeriod())
+        .select_variables((variable.DRY_DAY_PERIOD.name,))
+        .dataset
     ]
 
     all_datasets = (
@@ -138,7 +160,7 @@ def _get_processed_data(shift_months=lags[1:]):
     for datasets in (temporal_interp_datasets, shift_and_interp_datasets):
         for i, dataset in enumerate(datasets):
             datasets[i] = dataset.get_persistent_season_trend_dataset(
-                persistent_perc=st_persistent_perc, k=st_k
+                persistent_perc=persistent_perc, k=season_trend_k
             )
 
     datasets_to_shift.extend(shift_and_interp_datasets)
@@ -162,35 +184,11 @@ def _get_processed_data(shift_months=lags[1:]):
                     )
                 )
 
-    selection_variables = get_filled_names(
-        [
-            "AGB Tree",
-            "Diurnal Temp Range",
-            "Dry Day Period",
-            "FAPAR",
-            "LAI",
-            "Max Temp",
-            "SIF",
-            "SWI(1)",
-            "ShrubAll",
-            "TreeAll",
-            "VOD Ku-band",
-            "lightning",
-            "pftCrop",
-            "pftHerb",
-            "popd",
-        ]
-    )
+    selection_variables = list(map(attrgetter("raw_filled"), all_inst_features))
     if shift_months is not None:
         for shift in shift_months:
-            selection_variables.extend(
-                [
-                    f"{var} {-shift} Month"
-                    for var in get_filled_names(
-                        ["LAI", "FAPAR", "Dry Day Period", "VOD Ku-band", "SIF"]
-                    )
-                ]
-            )
+            for var_factory in shifted_variables:
+                selection_variables.append(var_factory[shift].raw_filled)
 
     selection_variables = list(set(selection_variables).union(required_variables))
 
@@ -212,6 +210,11 @@ def _get_processed_data(shift_months=lags[1:]):
         target_variable=target_variable,
         masks=None,
     )
+    _pandas_string_labels_to_variables(endog_data)
+    _pandas_string_labels_to_variables(exog_data)
+
+    assert exog_data.shape[1] == 50
+
     return (
         # XXX: testing
         endog_data.iloc[:10000],
@@ -225,92 +228,61 @@ def _get_processed_data(shift_months=lags[1:]):
 
 @cache
 @mark_dependency
-def _get_offset_data(
-    endog_data,
+def _get_offset_exog_data(
     exog_data,
-    master_mask,
-    filled_datasets,
-    masked_datasets,
-    land_mask,
 ):
-    """Low-level function which calculates anomalies for large lags.
-
-    The arguments:
-        `endog_data, exog_data, master_mask, filled_datasets, masked_datasets,
-        land_mask`
-    are output by `_get_processed_data()`.
-
-    """
+    """Low-level function which calculates anomalies for large lags."""
     to_delete = []
 
-    for column in exog_data:
-        match = re.search(r"-\d{1,2}", column)
-        if match:
-            span = match.span()
-            # Change the string to reflect the shift.
-            original_offset = int(column[slice(*span)])
-            if original_offset > -12:
-                # Only shift months that are 12 or more months before the current month.
-                continue
-            comp = -(-original_offset % 12)
-            new_column = " ".join(
-                (
-                    column[: span[0] - 1],
-                    f"{original_offset} - {comp}",
-                    column[span[1] + 1 :],
-                )
-            )
-            if comp == 0:
-                comp_column = column[: span[0] - 1]
-            else:
-                comp_column = " ".join(
-                    (column[: span[0] - 1], f"{comp}", column[span[1] + 1 :])
-                )
-            print(column, comp_column)
-            exog_data[new_column] = exog_data[column] - exog_data[comp_column]
-            to_delete.append(column)
+    for var in exog_data:
+        if var.shift < 12:
+            continue
+
+        new_var = var.transform_offset()
+        comp_var = variable.get_matching(
+            exog_data.columns, name=new_var.name, shift=new_var.comp_shift
+        )
+        print(f"{var} - {comp_var} -> {new_var}")
+        exog_data[new_var] = exog_data[var] - exog_data[comp_var]
+        to_delete.append(var)
 
     for column in to_delete:
         del exog_data[column]
 
-    return (
-        endog_data,
-        exog_data,
-        master_mask,
-        filled_datasets,
-        masked_datasets,
-        land_mask,
-    )
+    return exog_data
 
 
-@cache(dependencies=(_get_processed_data, _get_offset_data))
+@cache(dependencies=(_get_processed_data, _get_offset_exog_data))
 @mark_dependency
 def get_data(experiment="ALL"):
     """Get data for a given experiment."""
-    experiment = experiment_name_dict.get(experiment, experiment)
-    if experiment not in experiment_name_dict.values():
-        name_dict_str = pformat(experiment_name_dict)
-        raise ValueError(
-            f"The given experiment '{experiment}' was not found in:\n{name_dict_str}."
-        )
-
     (
         endog_data,
-        exog_data,
+        unshifted_exog_data,
         master_mask,
         filled_datasets,
         masked_datasets,
         land_mask,
-    ) = _get_offset_data(*_get_processed_data())
+    ) = _get_processed_data()
 
-    exp_selected_features = selected_features[experiment]
-    exp_offset_selected_features = offset_selected_features[experiment]
-    if exp_offset_selected_features is not None:
-        assert len(exp_selected_features) == len(exp_offset_selected_features) == 15
+    exog_data = _get_offset_exog_data(unshifted_exog_data)
+
+    # Since we applied offsets above, this needs to be reflected in the variable names.
+    exp_selected_features = tuple(
+        map(methodcaller("transform_offset"), selected_features[experiment])
+    )
+    if set(exp_selected_features) != set(exog_data.columns):
+        assert len(exp_selected_features) == 15
         # We need to subset exog_data, filled_datasets, and masked_datasets.
-        exog_data = exog_data[list(exp_offset_selected_features)]
-        filled_datasets = filled_datasets.select_variables(exp_selected_features)
-        masked_datasets = masked_datasets.select_variables(exp_selected_features)
+        exog_data = exog_data[list(exp_selected_features)]
+        # The Datasets objects below are not ware of the 'variable' module and use
+        # normal string indexing instead.
+        filled_datasets = filled_datasets.select_variables(
+            tuple(map(attrgetter("raw_filled"), exp_selected_features))
+        )
+        masked_datasets = masked_datasets.select_variables(
+            tuple(map(attrgetter("raw_filled"), exp_selected_features))
+        )
         assert (
             exog_data.shape[1]
             == len(filled_datasets.cubes)

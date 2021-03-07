@@ -10,7 +10,7 @@ import matplotlib as mpl
 from loguru import logger as loguru_logger
 
 from empirical_fire_modelling.cache import IN_STORE, check_in_store
-from empirical_fire_modelling.configuration import all_experiments, param_dict
+from empirical_fire_modelling.configuration import Experiment, param_dict
 from empirical_fire_modelling.cx1 import run
 from empirical_fire_modelling.data import get_experiment_split_data
 from empirical_fire_modelling.logging_config import enable_logging
@@ -56,4 +56,4 @@ if __name__ == "__main__":
     # Relevant if called with the command 'cx1' instead of 'local'.
     cx1_kwargs = dict(walltime="06:00:00", ncpus=1, mem="7GB")
 
-    run(fit_experiment_model, all_experiments, cx1_kwargs=cx1_kwargs)
+    run(fit_experiment_model, list(Experiment), cx1_kwargs=cx1_kwargs)

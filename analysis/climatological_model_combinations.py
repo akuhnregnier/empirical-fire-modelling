@@ -8,11 +8,30 @@ import logging
 import os
 import sys
 import warnings
+from collections import defaultdict
+from itertools import product
 from pathlib import Path
 
 import matplotlib as mpl
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 from loguru import logger as loguru_logger
+from wildfires.dask_cx1 import (
+    DaskRandomForestRegressor,
+    dask_fit_combinations,
+    get_client,
+)
+from wildfires.qstat import get_ncpus
 
+from empirical_fire_modelling import variable
+from empirical_fire_modelling.configuration import (
+    CACHE_DIR,
+    Experiment,
+    n_splits,
+    param_dict,
+)
+from empirical_fire_modelling.data import get_data, get_experiment_split_data
 from empirical_fire_modelling.logging_config import enable_logging
 
 if "TQDMAUTO" in os.environ:
@@ -38,36 +57,57 @@ warnings.filterwarnings(
 )
 
 if __name__ == "__main__":
+    client = get_client(fallback=True, fallback_threaded=True)
+
     # Get training and test data for all variables.
-    X_train, X_test, y_train, y_test = get_split_data("all")
-    veg_features = get_filled_names(["VOD Ku-band", "LAI", "SIF", "FAPAR"])
-    shifts = ["", *[f" -{x} Month" for x in [1, 3, 6, 9]]]
-    veg_lags = []
-    for shift in shifts:
-        shift_arr = []
-        for veg_feature in veg_features:
-            shift_arr.append(veg_feature + shift)
-        veg_lags.append(shift_arr)
+    (
+        endog_data,
+        exog_data,
+        master_mask,
+        filled_datsets,
+        masked_datasets,
+        land_mask,
+    ) = get_data(Experiment.ALL)
+
+    X_train, X_test, y_train, y_test = get_experiment_split_data(Experiment.ALL)
+
+    shifts = (0, 1, 3, 6, 9)
+    assert all(shift in variable.lags for shift in shifts)
+
+    veg_lags = tuple(
+        tuple(
+            [
+                var_factory[shift]
+                for var_factory in variable.feature_categories[
+                    variable.Category.VEGETATION
+                ]
+            ]
+        )
+        for shift in shifts
+    )
+
     assert all(feature in exog_data for unpacked in veg_lags for feature in unpacked)
 
     combinations = [
         (
-            "Dry Day Period",
-            "Max Temp",
-            "Dry Day Period -1 Month",
-            "Dry Day Period -3 Month",
-            "pftCrop",
-            "popd",
-            "Dry Day Period -9 Month",
-            "AGB Tree",
-            "Dry Day Period -6 Month",
-            "pftHerb",
+            variable.DRY_DAY_PERIOD[0],
+            variable.MAX_TEMP[0],
+            variable.DRY_DAY_PERIOD[1],
+            variable.DRY_DAY_PERIOD[3],
+            variable.PFT_CROP[0],
+            variable.POPD[0],
+            variable.DRY_DAY_PERIOD[9],
+            variable.AGB_TREE[0],
+            variable.DRY_DAY_PERIOD[6],
+            variable.PFT_HERB[0],
             *veg_lag_product,
         )
         for veg_lag_product in product(*veg_lags)
     ]
 
     assert all(len(combination) == 15 for combination in combinations)
+
+    print("Starting fitting")
 
     scores = dask_fit_combinations(
         DaskRandomForestRegressor(**param_dict),
@@ -118,7 +158,8 @@ if __name__ == "__main__":
 
     print(mean_r2_test_scores[0])
 
-    print("\n".join(sort_features(list(keys[0]))))
+    # XXX:
+    # print("\n".join(sort_features(list(keys[0]))))
 
     r2_test_scores[tuple(keys[0])], np.mean(r2_test_scores[tuple(keys[0])])
 

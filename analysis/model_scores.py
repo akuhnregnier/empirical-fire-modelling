@@ -10,7 +10,7 @@ import matplotlib as mpl
 from loguru import logger as loguru_logger
 
 from empirical_fire_modelling.cache import check_in_store
-from empirical_fire_modelling.configuration import all_experiments, param_dict
+from empirical_fire_modelling.configuration import Experiment, param_dict
 from empirical_fire_modelling.cx1 import run
 from empirical_fire_modelling.data import get_experiment_split_data
 from empirical_fire_modelling.logging_config import enable_logging
@@ -54,7 +54,7 @@ def get_experiment_model_scores(experiment, cache_check=False, **kwargs):
 
 
 if __name__ == "__main__":
-    scores = run(get_experiment_model_scores, all_experiments)
+    scores = run(get_experiment_model_scores, list(Experiment))
 
     from pprint import pprint
 

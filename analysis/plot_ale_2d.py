@@ -67,7 +67,7 @@ def plot_2d_ale(experiment, single=False, verbose=False, **kwargs):
         total = 2 * len(columns_list)
 
     for columns, plot_samples in tqdm(
-        islice(param_iter, None, total),
+        islice(param_iter(), None, total),
         desc=f"2D ALE plotting ({experiment})",
         total=total,
         disable=not verbose,

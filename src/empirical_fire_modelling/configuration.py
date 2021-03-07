@@ -1,42 +1,41 @@
 # -*- coding: utf-8 -*-
 """Common variables which control the calculations and ."""
-import re
+from enum import Enum
+from functools import reduce
+from operator import add
 from pathlib import Path
 
 from immutabledict import immutabledict
-from wildfires.utils import shorten_features
+from wildfires.data import DATA_DIR
 
+from . import variable
 
-def get_offset_features(features):
-    """Replace large offsets with their transformed representation."""
-    if features is None:
-        return None
+CACHE_DIR = Path(DATA_DIR) / "cache_data" / "empirical_fire_modelling"
 
-    offset_features = []
-    for column in features:
-        match = re.search(r"-\d{1,2}", column)
-        if match:
-            span = match.span()
-            # Change the string to reflect the shift.
-            original_offset = int(column[slice(*span)])
-            if original_offset > -12:
-                # Only shift months that are 12 or more months before the current month.
-                offset_features.append(column)
-                continue
-            comp = -(-original_offset % 12)
-            new_column = " ".join(
-                (
-                    column[: span[0] - 1],
-                    f"{original_offset} - {comp}",
-                    column[span[1] + 1 :],
-                )
-            )
-            offset_features.append(new_column)
-        else:
-            offset_features.append(column)
+Experiment = Enum(
+    "Experiment",
+    [
+        "ALL",
+        "TOP15",
+        "CURR",
+        "15VEG_FAPAR",
+        "15VEG_LAI",
+        "15VEG_SIF",
+        "15VEG_VOD",
+        "CURRDD_FAPAR",
+        "CURRDD_LAI",
+        "CURRDD_SIF",
+        "CURRDD_VOD",
+        "BEST15",
+    ],
+)
 
-    return offset_features
-
+main_experiments = (
+    Experiment.ALL,
+    Experiment.TOP15,
+    Experiment.CURR,
+    Experiment.BEST15,
+)
 
 shared_figure_saver_kwargs = immutabledict(debug=True)
 figure_saver_kwargs = immutabledict({**shared_figure_saver_kwargs, **dict(dpi=300)})
@@ -45,333 +44,249 @@ map_figure_saver_kwargs = immutabledict(
 )
 figure_save_dir = Path("~") / "tmp" / "empirical_fire_modelling"
 
-# Investigated lags.
-lags = (0, 1, 3, 6, 9, 12, 18, 24)
-
-# Data filling params.
-st_persistent_perc = 50
-st_k = 4
-
-filled_variables = {"SWI(1)", "FAPAR", "LAI", "VOD Ku-band", "SIF"}
-filled_variables.update(shorten_features(filled_variables))
-
-
-def fill_name(name):
-    return f"{name} {st_persistent_perc}P {st_k}k"
-
-
-def get_filled_names(names):
-    if isinstance(names, str):
-        return get_filled_names((names,))[0]
-    filled = []
-    for name in names:
-        if any(var in name for var in filled_variables):
-            filled.append(fill_name(name))
-        else:
-            filled.append(name)
-    return filled
-
-
-main_experiments = ("all", "15_most_important", "no_temporal_shifts", "best_top_15")
-
-experiment_name_dict = immutabledict(
-    {
-        "all": "ALL",
-        "15_most_important": "TOP15",
-        "no_temporal_shifts": "CURR",
-        "fapar_only": "15VEG_FAPAR",
-        "lai_only": "15VEG_LAI",
-        "sif_only": "15VEG_SIF",
-        "vod_only": "15VEG_VOD",
-        "lagged_fapar_only": "CURRDD_FAPAR",
-        "lagged_lai_only": "CURRDD_LAI",
-        "lagged_sif_only": "CURRDD_SIF",
-        "lagged_vod_only": "CURRDD_VOD",
-        "best_top_15": "BEST15",
-    }
-)
-
-all_experiments = tuple(experiment_name_dict)
-
 selected_features = immutabledict(
     {
-        "ALL": None,  # Sentinel value indicating all values are selected.
-        "CURR": tuple(
-            get_filled_names(
+        Experiment.ALL: (
+            reduce(
+                add,
                 (
-                    "Dry Day Period",
-                    "SWI(1)",
-                    "Max Temp",
-                    "Diurnal Temp Range",
-                    "lightning",
-                    "pftCrop",
-                    "popd",
-                    "pftHerb",
-                    "ShrubAll",
-                    "TreeAll",
-                    "AGB Tree",
-                    "VOD Ku-band",
-                    "FAPAR",
-                    "LAI",
-                    "SIF",
-                )
+                    list(variable.get_shifted_variables(var_factory))
+                    for var_factory in (
+                        variable.DRY_DAY_PERIOD,
+                        variable.SWI,
+                        variable.MAX_TEMP,
+                        variable.DIURNAL_TEMP_RANGE,
+                        variable.LIGHTNING,
+                        variable.PFT_CROP,
+                        variable.POPD,
+                        variable.PFT_HERB,
+                        variable.SHRUB_ALL,
+                        variable.TREE_ALL,
+                        variable.AGB_TREE,
+                        variable.VOD,
+                        variable.FAPAR,
+                        variable.LAI,
+                        variable.SIF,
+                    )
+                ),
             )
         ),
-        "BEST15": (
-            "Dry Day Period",
-            "Dry Day Period -1 Month",
-            "Dry Day Period -3 Month",
-            "Dry Day Period -6 Month",
-            "Dry Day Period -9 Month",
-            "Max Temp",
-            "pftCrop",
-            "popd",
-            "pftHerb",
-            "AGB Tree",
-            "VOD Ku-band 50P 4k -9 Month",
-            "FAPAR 50P 4k",
-            "FAPAR 50P 4k -1 Month",
-            "LAI 50P 4k -3 Month",
-            "SIF 50P 4k -6 Month",
+        Experiment.CURR: (
+            variable.DRY_DAY_PERIOD[0],
+            variable.SWI[0],
+            variable.MAX_TEMP[0],
+            variable.DIURNAL_TEMP_RANGE[0],
+            variable.LIGHTNING[0],
+            variable.PFT_CROP[0],
+            variable.POPD[0],
+            variable.PFT_HERB[0],
+            variable.SHRUB_ALL[0],
+            variable.TREE_ALL[0],
+            variable.AGB_TREE[0],
+            variable.VOD[0],
+            variable.FAPAR[0],
+            variable.LAI[0],
+            variable.SIF[0],
         ),
-        "TOP15": (
-            "Dry Day Period",
-            "FAPAR 50P 4k",
-            "Max Temp",
-            "VOD Ku-band 50P 4k -3 Month",
-            "LAI 50P 4k -1 Month",
-            "Dry Day Period -1 Month",
-            "Dry Day Period -3 Month",
-            "SIF 50P 4k",
-            "LAI 50P 4k -3 Month",
-            "VOD Ku-band 50P 4k -1 Month",
-            "VOD Ku-band 50P 4k",
-            "FAPAR 50P 4k -1 Month",
-            "pftCrop",
-            "SIF 50P 4k -9 Month",
-            "popd",
+        Experiment.BEST15: (
+            variable.DRY_DAY_PERIOD[0],
+            variable.DRY_DAY_PERIOD[1],
+            variable.DRY_DAY_PERIOD[3],
+            variable.DRY_DAY_PERIOD[6],
+            variable.DRY_DAY_PERIOD[9],
+            variable.MAX_TEMP[0],
+            variable.PFT_CROP[0],
+            variable.POPD[0],
+            variable.PFT_HERB[0],
+            variable.AGB_TREE[0],
+            variable.VOD[9],
+            variable.FAPAR[0],
+            variable.FAPAR[1],
+            variable.LAI[3],
+            variable.SIF[6],
         ),
-        "15VEG_FAPAR": (
-            "Dry Day Period",
-            "Dry Day Period -1 Month",
-            "Dry Day Period -3 Month",
-            "Dry Day Period -6 Month",
-            "Dry Day Period -9 Month",
-            "Max Temp",
-            "pftCrop",
-            "popd",
-            "pftHerb",
-            "AGB Tree",
-            "FAPAR 50P 4k",
-            "FAPAR 50P 4k -1 Month",
-            "FAPAR 50P 4k -3 Month",
-            "FAPAR 50P 4k -6 Month",
-            "FAPAR 50P 4k -9 Month",
+        Experiment.TOP15: (
+            variable.DRY_DAY_PERIOD[0],
+            variable.FAPAR[0],
+            variable.MAX_TEMP[0],
+            variable.VOD[3],
+            variable.LAI[1],
+            variable.DRY_DAY_PERIOD[1],
+            variable.DRY_DAY_PERIOD[3],
+            variable.SIF[0],
+            variable.LAI[3],
+            variable.VOD[0],
+            variable.VOD[1],
+            variable.FAPAR[1],
+            variable.PFT_CROP[0],
+            variable.SIF[9],
+            variable.POPD[0],
         ),
-        "15VEG_LAI": (
-            "Dry Day Period",
-            "Dry Day Period -1 Month",
-            "Dry Day Period -3 Month",
-            "Dry Day Period -6 Month",
-            "Dry Day Period -9 Month",
-            "Max Temp",
-            "pftCrop",
-            "popd",
-            "pftHerb",
-            "AGB Tree",
-            "LAI 50P 4k",
-            "LAI 50P 4k -1 Month",
-            "LAI 50P 4k -3 Month",
-            "LAI 50P 4k -6 Month",
-            "LAI 50P 4k -9 Month",
+        Experiment["15VEG_FAPAR"]: (
+            variable.DRY_DAY_PERIOD[0],
+            variable.DRY_DAY_PERIOD[1],
+            variable.DRY_DAY_PERIOD[3],
+            variable.DRY_DAY_PERIOD[6],
+            variable.DRY_DAY_PERIOD[9],
+            variable.MAX_TEMP[0],
+            variable.PFT_CROP[0],
+            variable.POPD[0],
+            variable.PFT_HERB[0],
+            variable.AGB_TREE[0],
+            variable.FAPAR[0],
+            variable.FAPAR[1],
+            variable.FAPAR[3],
+            variable.FAPAR[6],
+            variable.FAPAR[9],
         ),
-        "15VEG_SIF": (
-            "Dry Day Period",
-            "Dry Day Period -1 Month",
-            "Dry Day Period -3 Month",
-            "Dry Day Period -6 Month",
-            "Dry Day Period -9 Month",
-            "Max Temp",
-            "pftCrop",
-            "popd",
-            "pftHerb",
-            "AGB Tree",
-            "SIF 50P 4k",
-            "SIF 50P 4k -1 Month",
-            "SIF 50P 4k -3 Month",
-            "SIF 50P 4k -6 Month",
-            "SIF 50P 4k -9 Month",
+        Experiment["15VEG_LAI"]: (
+            variable.DRY_DAY_PERIOD[0],
+            variable.DRY_DAY_PERIOD[1],
+            variable.DRY_DAY_PERIOD[3],
+            variable.DRY_DAY_PERIOD[6],
+            variable.DRY_DAY_PERIOD[9],
+            variable.MAX_TEMP[0],
+            variable.PFT_CROP[0],
+            variable.POPD[0],
+            variable.PFT_HERB[0],
+            variable.AGB_TREE[0],
+            variable.LAI[0],
+            variable.LAI[1],
+            variable.LAI[3],
+            variable.LAI[6],
+            variable.LAI[9],
         ),
-        "15VEG_VOD": (
-            "Dry Day Period",
-            "Dry Day Period -1 Month",
-            "Dry Day Period -3 Month",
-            "Dry Day Period -6 Month",
-            "Dry Day Period -9 Month",
-            "Max Temp",
-            "pftCrop",
-            "popd",
-            "pftHerb",
-            "AGB Tree",
-            "VOD Ku-band 50P 4k",
-            "VOD Ku-band 50P 4k -1 Month",
-            "VOD Ku-band 50P 4k -3 Month",
-            "VOD Ku-band 50P 4k -6 Month",
-            "VOD Ku-band 50P 4k -9 Month",
+        Experiment["15VEG_SIF"]: (
+            variable.DRY_DAY_PERIOD[0],
+            variable.DRY_DAY_PERIOD[1],
+            variable.DRY_DAY_PERIOD[3],
+            variable.DRY_DAY_PERIOD[6],
+            variable.DRY_DAY_PERIOD[9],
+            variable.MAX_TEMP[0],
+            variable.PFT_CROP[0],
+            variable.POPD[0],
+            variable.PFT_HERB[0],
+            variable.AGB_TREE[0],
+            variable.SIF[0],
+            variable.SIF[1],
+            variable.SIF[3],
+            variable.SIF[6],
+            variable.SIF[9],
         ),
-        "CURRDD_FAPAR": (
-            "Dry Day Period",
-            "Max Temp",
-            "TreeAll",
-            "SWI(1) 50P 4k",
-            "pftHerb",
-            "Diurnal Temp Range",
-            "ShrubAll",
-            "AGB Tree",
-            "pftCrop",
-            "lightning",
-            "FAPAR 50P 4k",
-            "FAPAR 50P 4k -1 Month",
-            "FAPAR 50P 4k -3 Month",
-            "FAPAR 50P 4k -6 Month",
-            "FAPAR 50P 4k -9 Month",
+        Experiment["15VEG_VOD"]: (
+            variable.DRY_DAY_PERIOD[0],
+            variable.DRY_DAY_PERIOD[1],
+            variable.DRY_DAY_PERIOD[3],
+            variable.DRY_DAY_PERIOD[6],
+            variable.DRY_DAY_PERIOD[9],
+            variable.MAX_TEMP[0],
+            variable.PFT_CROP[0],
+            variable.POPD[0],
+            variable.PFT_HERB[0],
+            variable.AGB_TREE[0],
+            variable.VOD[0],
+            variable.VOD[1],
+            variable.VOD[3],
+            variable.VOD[6],
+            variable.VOD[9],
         ),
-        "CURRDD_LAI": (
-            "Dry Day Period",
-            "Max Temp",
-            "TreeAll",
-            "SWI(1) 50P 4k",
-            "pftHerb",
-            "Diurnal Temp Range",
-            "ShrubAll",
-            "AGB Tree",
-            "pftCrop",
-            "lightning",
-            "LAI 50P 4k",
-            "LAI 50P 4k -1 Month",
-            "LAI 50P 4k -3 Month",
-            "LAI 50P 4k -6 Month",
-            "LAI 50P 4k -9 Month",
+        Experiment.CURRDD_FAPAR: (
+            variable.DRY_DAY_PERIOD[0],
+            variable.MAX_TEMP[0],
+            variable.TREE_ALL[0],
+            variable.SWI[0],
+            variable.PFT_HERB[0],
+            variable.DIURNAL_TEMP_RANGE[0],
+            variable.SHRUB_ALL[0],
+            variable.AGB_TREE[0],
+            variable.PFT_CROP[0],
+            variable.LIGHTNING[0],
+            variable.FAPAR[0],
+            variable.FAPAR[1],
+            variable.FAPAR[3],
+            variable.FAPAR[6],
+            variable.FAPAR[9],
         ),
-        "CURRDD_SIF": (
-            "Dry Day Period",
-            "Max Temp",
-            "TreeAll",
-            "SWI(1) 50P 4k",
-            "pftHerb",
-            "Diurnal Temp Range",
-            "ShrubAll",
-            "AGB Tree",
-            "pftCrop",
-            "lightning",
-            "SIF 50P 4k",
-            "SIF 50P 4k -1 Month",
-            "SIF 50P 4k -3 Month",
-            "SIF 50P 4k -6 Month",
-            "SIF 50P 4k -9 Month",
+        Experiment.CURRDD_LAI: (
+            variable.DRY_DAY_PERIOD[0],
+            variable.MAX_TEMP[0],
+            variable.TREE_ALL[0],
+            variable.SWI[0],
+            variable.PFT_HERB[0],
+            variable.DIURNAL_TEMP_RANGE[0],
+            variable.SHRUB_ALL[0],
+            variable.AGB_TREE[0],
+            variable.PFT_CROP[0],
+            variable.LIGHTNING[0],
+            variable.LAI[0],
+            variable.LAI[1],
+            variable.LAI[3],
+            variable.LAI[6],
+            variable.LAI[9],
         ),
-        "CURRDD_VOD": (
-            "Dry Day Period",
-            "Max Temp",
-            "TreeAll",
-            "SWI(1) 50P 4k",
-            "pftHerb",
-            "Diurnal Temp Range",
-            "ShrubAll",
-            "AGB Tree",
-            "pftCrop",
-            "lightning",
-            "VOD Ku-band 50P 4k",
-            "VOD Ku-band 50P 4k -1 Month",
-            "VOD Ku-band 50P 4k -3 Month",
-            "VOD Ku-band 50P 4k -6 Month",
-            "VOD Ku-band 50P 4k -9 Month",
+        Experiment.CURRDD_SIF: (
+            variable.DRY_DAY_PERIOD[0],
+            variable.MAX_TEMP[0],
+            variable.TREE_ALL[0],
+            variable.SWI[0],
+            variable.PFT_HERB[0],
+            variable.DIURNAL_TEMP_RANGE[0],
+            variable.SHRUB_ALL[0],
+            variable.AGB_TREE[0],
+            variable.PFT_CROP[0],
+            variable.LIGHTNING[0],
+            variable.SIF[0],
+            variable.SIF[1],
+            variable.SIF[3],
+            variable.SIF[6],
+            variable.SIF[9],
+        ),
+        Experiment.CURRDD_VOD: (
+            variable.DRY_DAY_PERIOD[0],
+            variable.MAX_TEMP[0],
+            variable.TREE_ALL[0],
+            variable.SWI[0],
+            variable.PFT_HERB[0],
+            variable.DIURNAL_TEMP_RANGE[0],
+            variable.SHRUB_ALL[0],
+            variable.AGB_TREE[0],
+            variable.PFT_CROP[0],
+            variable.LIGHTNING[0],
+            variable.VOD[0],
+            variable.VOD[1],
+            variable.VOD[3],
+            variable.VOD[6],
+            variable.VOD[9],
         ),
     }
 )
 
-offset_selected_features = immutabledict(
-    {exp: get_offset_features(features) for exp, features in selected_features.items()}
-)
-
-assert set(offset_selected_features) == set(
-    experiment_name_dict.values()
-), "All experiments should define their selected features."
-
-
-units = immutabledict(
-    {
-        "DD": "days",
-        "SWI": r"$\mathrm{m}^3 \mathrm{m}^{-3}$",
-        "MaxT": "K",
-        "DTR": "K",
-        "Lightning": r"$\mathrm{strokes}\ \mathrm{km}^{-2}$",
-        "CROP": "1",
-        "POPD": r"$\mathrm{inh}\ \mathrm{km}^{-2}$",
-        "HERB": "1",
-        "SHRUB": "1",
-        "TREE": "1",
-        "AGB": "r$\mathrm{kg}\ \mathrm{m}^{-2}$",
-        "VOD": "1",
-        "FAPAR": "1",
-        "LAI": r"$\mathrm{m}^2\ \mathrm{m}^{-2}$",
-        "SIF": "r$\mathrm{mW}\ \mathrm{m}^{-2}\ \mathrm{sr}^{-1}\ \mathrm{nm}^{-1}$",
-    }
-)
+assert len(selected_features) == len(
+    Experiment
+), "There should be as many experiment feature specs as experiments."
+assert all(
+    isinstance(exp, Experiment) for exp in selected_features
+), "All keys should be Experiment instances."
+assert all(
+    all(isinstance(var, variable.Variable) for var in selected)
+    for selected in selected_features.values()
+), "All variables should be variable.Variable instances."
 
 # SHAP parameters.
 # XXX: original value 2000 (~6 hrs per job?)
 shap_job_samples = 20  # Samples per job.
 
 shap_interact_params = immutabledict(
-    {
-        "job_samples": 50,  # Samples per job.
-        "max_index": 5999,  # Maximum job array index (inclusive).
-    }
+    job_samples=50,  # Samples per job.
+    max_index=5999,  # Maximum job array index (inclusive).
 )
 
 # Specify common RF (training) params.
 n_splits = 5
 
-default_param_dict = immutabledict(
-    {"random_state": 1, "bootstrap": True, "oob_score": True}
-)
+default_param_dict = immutabledict(random_state=1, bootstrap=True, oob_score=True)
 
 param_dict = immutabledict({**default_param_dict})
 
 # Training and validation test splitting.
 train_test_split_kwargs = immutabledict(random_state=1, shuffle=True, test_size=0.3)
-
-feature_categories = immutabledict(
-    {
-        # `get_filled_names` may need to be called here if needed.
-        "meteorology": (
-            "Dry Day Period",
-            "SWI(1)",
-            "Max Temp",
-            "Diurnal Temp Range",
-            "lightning",
-        ),
-        "human": ("pftCrop", "popd"),
-        "landcover": ("pftHerb", "ShrubAll", "TreeAll", "AGB Tree"),
-        "vegetation": ("VOD Ku-band", "FAPAR", "LAI", "SIF"),
-    }
-)
-
-feature_order = {}
-no_fill_feature_order = {}
-counter = 0
-for category, entries in feature_categories.items():
-    for entry in entries:
-        feature_order[entry] = counter
-        no_fill_feature_order[entry.strip(fill_name(""))] = counter
-        counter += 1
-        no_fill_feature_order[shorten_features(entry.strip(fill_name("")))] = counter
-        counter += 1
-
-# If BA is included, position it first.
-no_fill_feature_order["GFED4 BA"] = -1
-no_fill_feature_order["BA"] = -2
-
-feature_order = immutabledict(feature_order)
-no_fill_feature_order = immutabledict(no_fill_feature_order)

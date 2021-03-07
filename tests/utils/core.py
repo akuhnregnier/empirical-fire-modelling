@@ -7,7 +7,7 @@ import pytest
 from joblib import Memory
 from wildfires.data import Datasets, MonthlyDataset, dummy_lat_lon_cube
 
-from empirical_fire_modelling.cache import DepMACache, cache, custom_get_hash
+from empirical_fire_modelling.cache import cache
 
 
 @pytest.fixture
@@ -23,13 +23,8 @@ def dummy_memory(tmp_dir):
 
 
 @pytest.fixture
-def ma_cache_inst(dummy_memory):
-    return DepMACache(memory=dummy_memory, hash_func=custom_get_hash)
-
-
-@pytest.fixture
-def test_cache(ma_cache_inst):
-    return cache(ma_cache_inst=ma_cache_inst)
+def test_cache(dummy_memory):
+    return cache(memory=dummy_memory)
 
 
 @pytest.fixture
@@ -37,7 +32,14 @@ def dummy_dataset():
     class DummyDataset(MonthlyDataset):
         def __init__(self):
             self.cubes = iris.cube.CubeList(
-                [dummy_lat_lon_cube(np.random.default_rng(0).random((10, 20, 40)))]
+                [
+                    dummy_lat_lon_cube(
+                        np.ma.MaskedArray(
+                            np.random.default_rng(0).random((10, 360, 720)),
+                            mask=np.zeros((10, 360, 720), dtype=np.bool_),
+                        )
+                    )
+                ]
             )
 
     return DummyDataset()

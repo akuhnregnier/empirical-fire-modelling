@@ -29,8 +29,10 @@ __all__ = (
     "experiment_colors",
     "experiment_marker_dict",
     "experiment_markers",
+    "figure_saver",
     "lag_color_dict",
     "lag_colors",
+    "map_figure_saver",
     "plot_shap_value_maps",
 )
 

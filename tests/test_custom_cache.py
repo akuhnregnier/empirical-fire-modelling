@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from empirical_fire_modelling.cache import check_in_store, custom_get_hash
+from empirical_fire_modelling.cache import custom_get_hash
 from empirical_fire_modelling.cache.custom_backend import HashProxy
 from empirical_fire_modelling.exceptions import NotCachedError
 
@@ -29,7 +29,7 @@ def test_custom_backend(test_cache, value):
         return value
 
     with pytest.raises(NotCachedError):
-        check_in_store(f, 0)
+        f.check_in_store(0)
 
     assert not isinstance(f(0), HashProxy)
 
@@ -90,10 +90,10 @@ def test_chained_factory_not_called(test_cache, input_arg, value1, value2):
         return value2
 
     with pytest.raises(NotCachedError):
-        check_in_store(func1, input_arg)
+        func1.check_in_store(input_arg)
 
     with pytest.raises(NotCachedError):
-        check_in_store(func2, value1)
+        func2.check_in_store(value1)
 
     # Generate the cache entries.
     assert np.all(func1(input_arg) == value1)
