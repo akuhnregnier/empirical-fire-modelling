@@ -7,6 +7,7 @@ from pathlib import Path
 
 import matplotlib as mpl
 import numpy as np
+import pandas as pd
 from loguru import logger as loguru_logger
 
 from empirical_fire_modelling.analysis.shap import get_shap_params, get_shap_values
@@ -118,3 +119,16 @@ if __name__ == "__main__":
         assert len(chosen_experiments) == 1
         assert len(raw_shap_data) == len(run_experiments)
         experiment_shap_data = {chosen_experiments[0]: raw_shap_data[0]}
+
+    shap_importances = {}
+    for exp, shap_arr in tqdm(experiment_shap_data.items()):
+        X_train, X_test, y_train, y_test = get_experiment_split_data(exp)
+        abs_shap_values = np.abs(shap_arr)
+        agg_df = pd.DataFrame(
+            {
+                "mean SHAP": np.mean(abs_shap_values, axis=0),
+                "std SHAP": np.std(abs_shap_values, axis=0),
+            },
+            index=map(str, X_train.columns),
+        )
+        shap_importances[exp] = agg_df.sort_values("mean SHAP", ascending=False)
