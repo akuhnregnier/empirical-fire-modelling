@@ -51,9 +51,10 @@ def fit_experiment_model(experiment, cache_check=False, **kwargs):
 
 if __name__ == "__main__":
     cx1_kwargs = dict(walltime="04:00:00", ncpus=32, mem="60GB")
+    experiments = list(Experiment)
     models = dict(
         zip(
             experiments,
-            run(fit_experiment_model, list(Experiment), cx1_kwargs=cx1_kwargs),
+            run(fit_experiment_model, experiments, cx1_kwargs=cx1_kwargs),
         )
     )
