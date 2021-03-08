@@ -50,4 +50,7 @@ def fit_experiment_model(experiment, cache_check=False, **kwargs):
 
 
 if __name__ == "__main__":
-    run(fit_experiment_model, list(Experiment), cx1_kwargs=False)
+    experiments = list(Experiment)
+    models = dict(
+        zip(experiments, run(fit_experiment_model, experiments, cx1_kwargs=False))
+    )

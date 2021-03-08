@@ -81,4 +81,15 @@ if __name__ == "__main__":
         for leave_out, results in exp_results.items():
             vis_data[(experiment.name, str(leave_out))] = results
     vis_df = pd.DataFrame(vis_data).T
+    vis_df.index.names = ["experiment", "feature"]
+    vis_df.rename(
+        {
+            "score": "train score",
+            "mse": "train mse",
+            "test_score": "test score",
+            "test_mse": "test mse",
+        },
+        inplace=True,
+        axis="columns",
+    )
     print(vis_df)

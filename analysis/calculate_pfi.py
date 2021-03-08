@@ -4,9 +4,9 @@ import logging
 import sys
 import warnings
 from pathlib import Path
-from pprint import pprint
 
 import matplotlib as mpl
+import pandas as pd
 from loguru import logger as loguru_logger
 
 from empirical_fire_modelling.analysis.pfi import calculate_pfi
@@ -67,8 +67,41 @@ def pfi_calc(experiment, cache_check=False, **kwargs):
     }
 
 
+def get_joined_exp_df(vis_data, experiment_name):
+    """Join the train and test data."""
+    joined = (
+        vis_data[experiment_name]["train"]
+        .T.set_index("feature", drop=True)
+        .rename({"weight": "train weight", "std": "train std"}, axis="columns")
+        .join(
+            vis_data[experiment_name]["test"]
+            .T.set_index("feature", drop=True)
+            .rename({"weight": "test weight", "std": "test std"}, axis="columns")
+        )
+    )
+    joined["experiment"] = experiment_name
+    return joined.set_index(["experiment", joined.index])
+
+
+def feature_column_to_str(df):
+    df.loc["feature"] = df.loc["feature"].apply(str)
+    return df
+
+
 if __name__ == "__main__":
     # Relevant if called with the command 'cx1' instead of 'local'.
     cx1_kwargs = dict(walltime="06:00:00", ncpus=32, mem="60GB")
 
-    pprint(run(pfi_calc, list(Experiment), cx1_kwargs=cx1_kwargs))
+    experiments = list(Experiment)
+    pfi_results = run(pfi_calc, experiments, cx1_kwargs=cx1_kwargs)
+
+    vis_data = {}
+    for exp, pfi_result in zip(experiments, pfi_results):
+        vis_data[exp.name] = {
+            key: feature_column_to_str(data.T) for key, data in pfi_result.items()
+        }
+
+    vis_df = pd.concat(
+        (get_joined_exp_df(vis_data, exp.name) for exp in experiments), axis=0
+    )
+    print(vis_df)

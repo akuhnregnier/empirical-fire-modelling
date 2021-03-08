@@ -12,14 +12,20 @@ from ..utils import get_mm_indices, tqdm
 
 
 def get_shap_params(X_train):
+    raw_max_index = X_train.shape[0] / shap_job_samples
+    max_index = math.floor(raw_max_index)
+    if abs(raw_max_index - max_index) < 1e-5:
+        # The two are identical, meaning that the last slice of data would be empty.
+        max_index -= 1
+
     shap_params = dict(
         job_samples=shap_job_samples,
-        max_index=math.floor(X_train.shape[0] / shap_job_samples),
+        max_index=max_index,
     )
     # Upper bound.
-    shap_params["total_samples"] = (
-        shap_params["max_index"] + 1 * shap_params["job_samples"]
-    )
+    shap_params["total_samples"] = (shap_params["max_index"] + 1) * shap_params[
+        "job_samples"
+    ]
     return shap_params
 
 

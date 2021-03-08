@@ -66,9 +66,11 @@ if __name__ == "__main__":
     cx1_kwargs = dict(walltime="06:00:00", ncpus=1, mem="7GB")
 
     args = [[], []]
+    experiments = list(Experiment)
+    chosen_experiments = experiments[: 1 if parse_args().single else None]
 
     for experiment in tqdm(
-        list(Experiment)[: 1 if parse_args().single else None],
+        chosen_experiments,
         desc="Preparing SHAP arguments",
         disable=not parse_args().verbose,
     ):
@@ -77,4 +79,16 @@ if __name__ == "__main__":
         args[0].extend([experiment] * N)
         args[1].extend(indices)
 
-    run(shap_values, *args, cx1_kwargs=cx1_kwargs)
+    raw_shap_data = run(shap_values, *args, cx1_kwargs=cx1_kwargs)
+
+    shap_data = {}
+    for ((experiment, index), data) in zip(zip(*args), raw_shap_data):
+        shap_data[(experiment, index)] = data
+
+    # Join data for the different experiments.
+    joined_data = {}
+    for experiment in chosen_experiments:
+        selected_shap_data = [
+            data for ((exp, index), data) in shap_data.items() if exp == experiment
+        ]
+        joined_data[experiment] = np.vstack(selected_shap_data)
