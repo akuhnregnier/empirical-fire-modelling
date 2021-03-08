@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Retrieving model scores. Expected to be run locally."""
 import logging
-import os
 import sys
 import warnings
 from pathlib import Path
@@ -9,17 +8,11 @@ from pathlib import Path
 import matplotlib as mpl
 from loguru import logger as loguru_logger
 
-from empirical_fire_modelling.cache import check_in_store
 from empirical_fire_modelling.configuration import Experiment, param_dict
 from empirical_fire_modelling.cx1 import run
 from empirical_fire_modelling.data import get_experiment_split_data
 from empirical_fire_modelling.logging_config import enable_logging
-from empirical_fire_modelling.model import call_get_model_check_cache, get_model_scores
-
-if "TQDMAUTO" in os.environ:
-    pass
-else:
-    pass
+from empirical_fire_modelling.model import get_model, get_model_scores
 
 mpl.rc_file(Path(__file__).resolve().parent / "matplotlibrc")
 
@@ -40,21 +33,21 @@ warnings.filterwarnings(
 
 
 def get_experiment_model_scores(experiment, cache_check=False, **kwargs):
-    if cache_check:
-        check_in_store(get_experiment_split_data, experiment)
+    # Operate on cached data only.
+    get_experiment_split_data.check_in_store(experiment)
     X_train, X_test, y_train, y_test = get_experiment_split_data(experiment)
 
-    model, client = call_get_model_check_cache(
-        X_train, y_train, param_dict, cache_check=cache_check
-    )
+    # Operate on cached fitted models only.
+    get_model(X_train, y_train, param_dict, cache_check=True)
+    model = get_model(X_train, y_train, param_dict)
 
     if cache_check:
-        return check_in_store(get_model_scores, model, X_test, X_train, y_test, y_train)
+        return get_model_scores.check_in_store(model, X_test, X_train, y_test, y_train)
     return get_model_scores(model, X_test, X_train, y_test, y_train)
 
 
 if __name__ == "__main__":
-    scores = run(get_experiment_model_scores, list(Experiment))
+    scores = run(get_experiment_model_scores, list(Experiment), cx1_kwargs=False)
 
     from pprint import pprint
 

@@ -8,20 +8,14 @@ import sys
 from argparse import ArgumentParser
 from functools import partial
 from pathlib import Path
-from pprint import pformat
+from pprint import pformat, pprint
 from subprocess import check_output
 
 import cloudpickle
 from jinja2 import Environment, FileSystemLoader
 
-from ..cache import check_in_store
-from ..exceptions import NotCachedError
-
-if "TQDMAUTO" in os.environ:
-    from tqdm.auto import tqdm
-else:
-    from tqdm import tqdm
-
+from ..exceptions import NoCX1Error, NotCachedError
+from ..utils import tqdm
 
 logger = logging.getLogger(__name__)
 
@@ -70,19 +64,26 @@ def run(func, *args, cx1_kwargs=None, **kwargs):
     of input data such that this is only carried out within `func` itself, based on
     the input arguments given here.
 
+    For checking the presence of cached data, the given function should accept a
+    `cache_check` keyword argument that will be set to True when checking is desired.
+
     Args:
         func (callable): Function to be run.
         *args (length-N iterables): Function arguments. These will be zipped before
             being passed to the function.
         cx1_kwargs: Further specification of the type of job that will be used to
             run the function on the cluster. The following arguments are supported:
-            'walltime', 'ncpus', and 'mem'.
+            'walltime', 'ncpus', and 'mem'. If `False` is given, trying to run on cx1
+            will raise an error.
         **kwargs: Function keyword arguments. These will be given identically to each
             function call, as opposed to `args`.
 
     Returns:
         tuple or None: The output results are returned if running locally. Otherwise,
             None is returned.
+
+    Raises:
+        NoCX1Error: If cx1_kwargs is `False` but running on CX1 was requested.
 
     """
     cmd_args = parse_args()
@@ -97,6 +98,13 @@ def run(func, *args, cx1_kwargs=None, **kwargs):
         args = tuple(args)
 
     if cmd_args.dest == "check" or cmd_args.uncached:
+
+        def check_in_store(func, *args, **kwargs):
+            if hasattr(func, "check_in_store"):
+                return func.check_in_store(*args, **kwargs)
+            else:
+                return func(*args, cache_check=True, **kwargs)
+
         # Check which calls are not yet cached. This relies on functions implementing
         # the `cache_check` keyword argument.
         checked = dict(present=[], uncached=[])
@@ -110,6 +118,9 @@ def run(func, *args, cx1_kwargs=None, **kwargs):
             except NotCachedError:
                 checked["uncached"].append((single_args, kwargs))
                 uncached_args.append(single_args)
+
+        pprint({key: len(val) for key, val in checked.items()})
+
         if cmd_args.dest == "check":
             # Only checking was requested.
             logger.info(f"Cache status:\n{pformat(checked)}")
@@ -128,6 +139,13 @@ def run(func, *args, cx1_kwargs=None, **kwargs):
             out.append(func(*single_args, **kwargs))
         return tuple(out)
     elif cmd_args.dest == "cx1":
+        if cx1_kwargs is False:
+            raise NoCX1Error(
+                "`cx1_kwargs` is `False`, but running on CX1 was requested."
+            )
+        if cx1_kwargs is None:
+            cx1_kwargs = {}
+
         n_args = len(args[0])
         # Submit either a single job (if there is only one set of arguments, or an
         # array job for multiple arguments.

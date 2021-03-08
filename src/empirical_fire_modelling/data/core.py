@@ -32,20 +32,6 @@ from ..configuration import Experiment, selected_features, train_test_split_kwar
 __all__ = ("get_data", "get_experiment_split_data", "get_split_data")
 
 
-def _pandas_string_labels_to_variables(x):
-    """Transform series names or columns labels to variable.Variable instances."""
-    all_variables = tuple(list(selected_features[Experiment.ALL]) + [variable.GFED4_BA])
-    all_variable_names = tuple(map(attrgetter("raw_filled"), all_variables))
-    if isinstance(x, pd.Series):
-        x.name = all_variables[all_variable_names.index(x.name)]
-    elif isinstance(x, pd.DataFrame):
-        x.columns = [all_variables[all_variable_names.index(c)] for c in x.columns]
-    else:
-        raise TypeError(
-            f"Expected either a pandas.Series or pandas.DataFrame. Got '{x}'."
-        )
-
-
 @cache
 @mark_dependency
 def _get_processed_data(
@@ -56,7 +42,7 @@ def _get_processed_data(
     shifted_variables=variable.shifted_variables,
     _variable_names=tuple(
         map(
-            attrgetter("name", "filled", "raw", "raw_filled"),
+            attrgetter("name", "shift"),
             selected_features[Experiment.ALL],
         )
     ),
@@ -210,6 +196,24 @@ def _get_processed_data(
         target_variable=target_variable,
         masks=None,
     )
+
+    def _pandas_string_labels_to_variables(x):
+        """Transform series names or columns labels to variable.Variable instances."""
+        all_variables = tuple(
+            # Get the instantaneous variables corresponding to all variables.
+            list(map(methodcaller("get_standard"), selected_features[Experiment.ALL]))
+            + [variable.GFED4_BA]
+        )
+        all_variable_names = tuple(map(attrgetter("raw_filled"), all_variables))
+        if isinstance(x, pd.Series):
+            x.name = all_variables[all_variable_names.index(x.name)]
+        elif isinstance(x, pd.DataFrame):
+            x.columns = [all_variables[all_variable_names.index(c)] for c in x.columns]
+        else:
+            raise TypeError(
+                f"Expected either a pandas.Series or pandas.DataFrame. Got '{x}'."
+            )
+
     _pandas_string_labels_to_variables(endog_data)
     _pandas_string_labels_to_variables(exog_data)
 
@@ -238,7 +242,7 @@ def _get_offset_exog_data(
         if var.shift < 12:
             continue
 
-        new_var = var.transform_offset()
+        new_var = var.get_offset()
         comp_var = variable.get_matching(
             exog_data.columns, name=new_var.name, shift=new_var.comp_shift
         )
@@ -269,7 +273,7 @@ def get_data(experiment="ALL"):
 
     # Since we applied offsets above, this needs to be reflected in the variable names.
     exp_selected_features = tuple(
-        map(methodcaller("transform_offset"), selected_features[experiment])
+        map(methodcaller("get_offset"), selected_features[experiment])
     )
     if set(exp_selected_features) != set(exog_data.columns):
         assert len(exp_selected_features) == 15

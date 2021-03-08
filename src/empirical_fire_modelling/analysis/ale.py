@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """ALE plots."""
 
-import os
 from functools import partial
 
 import matplotlib.pyplot as plt
@@ -10,14 +9,7 @@ import numpy as np
 from alepython.ale import _sci_format, ale_plot, first_order_ale_quant
 from joblib import parallel_backend
 from matplotlib.colors import SymLogNorm
-from wildfires.utils import NoCachedDataError, SimpleCache, simple_sci_format
-
-from ..utils import add_units
-
-if "TQDMAUTO" in os.environ:
-    from tqdm.auto import tqdm
-else:
-    from tqdm import tqdm
+from wildfires.utils import NoCachedDataError, SimpleCache, simple_sci_format, tqdm
 
 
 def save_ale_1d(
@@ -64,7 +56,7 @@ def save_ale_1d(
 
     sub_dir = "ale" if monte_carlo else "ale_non_mc"
     if figure_saver is not None:
-        figure_saver.save_figure(fig, column, sub_directory=sub_dir)
+        figure_saver.save_figure(fig, str(column), sub_directory=sub_dir)
 
 
 def save_ale_2d(
@@ -175,8 +167,8 @@ def save_ale_2d(
             axes[ax_key].xaxis.set_tick_params(rotation=50)
 
     axes["ale"].set_aspect("equal")
-    axes["ale"].set_xlabel(add_units(features[0]))
-    axes["ale"].set_ylabel(add_units(features[1]))
+    axes["ale"].set_xlabel(features[0].units)
+    axes["ale"].set_ylabel(features[1].units)
     axes["ale"].set_title("")
 
     axes["ale"].xaxis.set_ticklabels(
@@ -230,8 +222,8 @@ def save_ale_2d(
         for tick in ax[1].xaxis.get_major_ticks():
             tick.label1.set_horizontalalignment("right")
         ax[1].set_aspect("equal")
-        ax[1].set_xlabel(add_units(features[0]))
-        ax[1].set_ylabel(add_units(features[1]))
+        ax[1].set_xlabel(features[0].units)
+        ax[1].set_ylabel(features[1].units)
         fig.set_constrained_layout_pads(
             w_pad=0.000, h_pad=0.000, hspace=0.0, wspace=0.015
         )
@@ -240,13 +232,13 @@ def save_ale_2d(
         if plot_samples:
             figure_saver.save_figure(
                 fig,
-                "__".join(features),
+                "__".join(map(str, features)),
                 sub_directory="2d_ale_first_order" if include_first_order else "2d_ale",
             )
         else:
             figure_saver.save_figure(
                 fig,
-                "__".join(features) + "_no_count",
+                "__".join(map(str, features)) + "_no_count",
                 sub_directory="2d_ale_first_order_no_count"
                 if include_first_order
                 else "2d_ale_no_count",

@@ -2,7 +2,7 @@
 """Common variables which control the calculations and ."""
 from enum import Enum
 from functools import reduce
-from operator import add
+from operator import add, methodcaller
 from pathlib import Path
 
 from immutabledict import immutabledict
@@ -44,7 +44,7 @@ map_figure_saver_kwargs = immutabledict(
 )
 figure_save_dir = Path("~") / "tmp" / "empirical_fire_modelling"
 
-selected_features = immutabledict(
+selected_features = dict(
     {
         Experiment.ALL: (
             reduce(
@@ -258,6 +258,13 @@ selected_features = immutabledict(
             variable.VOD[6],
             variable.VOD[9],
         ),
+    }
+)
+# Get the required offset features and transform the dict into and immutabledict.
+selected_features = immutabledict(
+    {
+        exp: tuple(map(methodcaller("get_offset"), exp_vars))
+        for exp, exp_vars in selected_features.items()
     }
 )
 

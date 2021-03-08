@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """SHAP value calculation."""
 import logging
-import os
 import sys
 import warnings
 from pathlib import Path
@@ -11,17 +10,12 @@ import numpy as np
 from loguru import logger as loguru_logger
 
 from empirical_fire_modelling.analysis.shap import get_shap_params, get_shap_values
-from empirical_fire_modelling.cache import check_in_store
 from empirical_fire_modelling.configuration import Experiment, param_dict
 from empirical_fire_modelling.cx1 import parse_args, run
 from empirical_fire_modelling.data import get_experiment_split_data
 from empirical_fire_modelling.logging_config import enable_logging
-from empirical_fire_modelling.model import call_get_model_check_cache
-
-if "TQDMAUTO" in os.environ:
-    from tqdm.auto import tqdm
-else:
-    from tqdm import tqdm
+from empirical_fire_modelling.model import get_model
+from empirical_fire_modelling.utils import tqdm
 
 mpl.rc_file(Path(__file__).resolve().parent / "matplotlibrc")
 
@@ -42,15 +36,15 @@ warnings.filterwarnings(
 
 
 def shap_values(experiment, index, cache_check=False, **kwargs):
-    if cache_check:
-        check_in_store(get_experiment_split_data, experiment)
+    # Operate on cached data only.
+    get_experiment_split_data.check_in_store(experiment)
     X_train, X_test, y_train, y_test = get_experiment_split_data(experiment)
 
     shap_params = get_shap_params(X_train)
 
-    rf, client = call_get_model_check_cache(
-        X_train, y_train, param_dict, cache_check=cache_check
-    )
+    # Operate on cached fitted models only.
+    get_model(X_train, y_train, param_dict, cache_check=True)
+    rf = get_model(X_train, y_train, param_dict)
 
     calc_shap_args = (
         rf,
@@ -62,7 +56,7 @@ def shap_values(experiment, index, cache_check=False, **kwargs):
     )
 
     if cache_check:
-        return check_in_store(get_shap_values, *calc_shap_args)
+        return get_shap_values.check_in_store(*calc_shap_args)
 
     return get_shap_values(*calc_shap_args)
 

@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from abc import ABC
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -16,13 +17,13 @@ class VariableFactory:
     def __getitem__(self, months):
         if months not in lags:
             raise ValueError(f"Unsupported months '{months}'. Expected one of {lags}.")
-        return Variable(
+        return StandardVariable(
             rank=self.rank, name=self.name, shift=months, units=self.units, parent=self
         )
 
 
-@dataclass(frozen=True, order=True)
-class Variable:
+@dataclass(frozen=True, order=True, init=False)
+class Variable(ABC):
     """A variable with its associated name, shift (in months), and units."""
 
     rank: int
@@ -31,6 +32,33 @@ class Variable:
     units: str = field(compare=False)
     parent: VariableFactory = field(compare=False)
 
+    def get_offset(self):
+        """Return a transformed Variable if there is a large (>12) shift."""
+        if self.shift >= 12 and not isinstance(self, OffsetVariable):
+            return OffsetVariable(
+                rank=self.rank,
+                name=self.name,
+                shift=self.shift,
+                units=self.units,
+                parent=self.parent,
+            )
+        return self
+
+    def get_standard(self):
+        """The inverse of `get_offset()`."""
+        if self.shift >= 12 and isinstance(self, OffsetVariable):
+            return StandardVariable(
+                rank=self.rank,
+                name=self.name,
+                shift=self.shift,
+                units=self.units,
+                parent=self.parent,
+            )
+        return self
+
+
+@dataclass(frozen=True, order=True)
+class StandardVariable(Variable):
     @property
     def _fill_root(self):
         """Add the fill params if needed."""
@@ -61,14 +89,6 @@ class Variable:
         if self.shift != 0:
             return f"{self._fill_root} -{self.shift} Month"
         return self._fill_root
-
-    def transform_offset(self):
-        """Return a transformed Variable if there is a large (>12) shift."""
-        if self.shift >= 12:
-            return OffsetVariable(
-                name=self.name, shift=self.shift, units=self.units, parent=self.parent
-            )
-        return self
 
 
 @dataclass(frozen=True, order=True)
@@ -241,7 +261,7 @@ SIF = VariableFactory(
     units="r$\mathrm{mW}\ \mathrm{m}^{-2}\ \mathrm{sr}^{-1}\ \mathrm{nm}^{-1}$",
 )
 
-GFED4_BA = Variable(rank=0, name="GFED4 BA", shift=0, units="1", parent=None)
+GFED4_BA = StandardVariable(rank=0, name="GFED4 BA", shift=0, units="1", parent=None)
 
 # Investigated lags.
 lags = (0, 1, 3, 6, 9, 12, 18, 24)

@@ -1,15 +1,9 @@
 # -*- coding: utf-8 -*-
 """LOCO calculation."""
-import os
 
 from wildfires.dask_cx1 import dask_fit_loco
 
 from ..cache import cache
-
-if "TQDMAUTO" in os.environ:
-    pass
-else:
-    pass
 
 
 @cache

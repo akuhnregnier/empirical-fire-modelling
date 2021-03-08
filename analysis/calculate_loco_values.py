@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""SHAP value calculation."""
+"""LOCO value calculation."""
 import logging
 import sys
 import warnings
@@ -8,9 +8,14 @@ from pprint import pprint
 
 import matplotlib as mpl
 from loguru import logger as loguru_logger
+from wildfires.dask_cx1 import get_client
 
-from empirical_fire_modelling.analysis.pfi import calculate_pfi
-from empirical_fire_modelling.configuration import Experiment, param_dict
+from empirical_fire_modelling.analysis.loco import calculate_loco
+from empirical_fire_modelling.configuration import (
+    Experiment,
+    param_dict,
+    selected_features,
+)
 from empirical_fire_modelling.cx1 import run
 from empirical_fire_modelling.data import get_experiment_split_data
 from empirical_fire_modelling.logging_config import enable_logging
@@ -34,12 +39,13 @@ warnings.filterwarnings(
 )
 
 
-def pfi_calc(experiment, cache_check=False, **kwargs):
-    """Calculate PFIs for both training and test data.
+def loco_calc(experiment, leave_out, cache_check=False, **kwargs):
+    """Calculate LOCO values.
 
     Args:
         experiment (str): Experiment (e.g. 'ALL').
-        data ({'test', 'train'}): Which data to use.
+        leave_out (iterable of column names): Column names to exclude. Empty string
+            for no excluded columns (i.e. the baseline with all columns).
         cache_check (bool): Whether to check for cached data exclusively.
 
     """
@@ -51,24 +57,22 @@ def pfi_calc(experiment, cache_check=False, **kwargs):
     get_model(X_train, y_train, param_dict, cache_check=True)
     rf = get_model(X_train, y_train, param_dict)
 
-    # Test data.
-    pfi_test_args = (rf, X_test, y_test)
-    if cache_check:
-        calculate_pfi.check_in_store(*pfi_test_args)
+    client = get_client(fallback=True, fallback_threaded=True)
 
-    # Train data.
-    pfi_train_args = (rf, X_train, y_train)
+    loco_kwargs = dict(
+        rf=rf,
+        X_train=X_train,
+        y_train=y_train,
+        X_test=X_test,
+        y_test=y_test,
+        client=client,
+        leave_out=("", *selected_features[experiment]),
+        local_n_jobs=1,
+    )
     if cache_check:
-        return calculate_pfi.check_in_store(*pfi_train_args)
-
-    return {
-        "train": calculate_pfi(*pfi_train_args),
-        "test": calculate_pfi(*pfi_test_args),
-    }
+        return calculate_loco.check_in_store(**loco_kwargs)
+    return calculate_loco(**loco_kwargs)
 
 
 if __name__ == "__main__":
-    # Relevant if called with the command 'cx1' instead of 'local'.
-    cx1_kwargs = dict(walltime="06:00:00", ncpus=32, mem="60GB")
-
-    pprint(run(pfi_calc, list(Experiment), cx1_kwargs=cx1_kwargs))
+    pprint(run(loco_calc, list(Experiment), cx1_kwargs=False))

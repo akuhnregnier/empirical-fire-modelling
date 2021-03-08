@@ -5,7 +5,6 @@ This should be run locally via a Dask client connected to several distributed wo
 
 """
 import logging
-import os
 import sys
 import warnings
 from collections import defaultdict
@@ -31,13 +30,8 @@ from empirical_fire_modelling.configuration import (
     n_splits,
     param_dict,
 )
-from empirical_fire_modelling.data import get_data, get_experiment_split_data
+from empirical_fire_modelling.data import get_experiment_split_data
 from empirical_fire_modelling.logging_config import enable_logging
-
-if "TQDMAUTO" in os.environ:
-    pass
-else:
-    pass
 
 mpl.rc_file(Path(__file__).resolve().parent / "matplotlibrc")
 
@@ -60,15 +54,6 @@ if __name__ == "__main__":
     client = get_client(fallback=True, fallback_threaded=True)
 
     # Get training and test data for all variables.
-    (
-        endog_data,
-        exog_data,
-        master_mask,
-        filled_datsets,
-        masked_datasets,
-        land_mask,
-    ) = get_data(Experiment.ALL)
-
     X_train, X_test, y_train, y_test = get_experiment_split_data(Experiment.ALL)
 
     shifts = (0, 1, 3, 6, 9)
@@ -86,20 +71,21 @@ if __name__ == "__main__":
         for shift in shifts
     )
 
-    assert all(feature in exog_data for unpacked in veg_lags for feature in unpacked)
+    assert all(feature in X_train for unpacked in veg_lags for feature in unpacked)
+    assert all(feature in X_test for unpacked in veg_lags for feature in unpacked)
 
     combinations = [
         (
+            variable.AGB_TREE[0],
             variable.DRY_DAY_PERIOD[0],
-            variable.MAX_TEMP[0],
             variable.DRY_DAY_PERIOD[1],
             variable.DRY_DAY_PERIOD[3],
-            variable.PFT_CROP[0],
-            variable.POPD[0],
-            variable.DRY_DAY_PERIOD[9],
-            variable.AGB_TREE[0],
             variable.DRY_DAY_PERIOD[6],
+            variable.DRY_DAY_PERIOD[9],
+            variable.MAX_TEMP[0],
+            variable.PFT_CROP[0],
             variable.PFT_HERB[0],
+            variable.POPD[0],
             *veg_lag_product,
         )
         for veg_lag_product in product(*veg_lags)
@@ -164,7 +150,7 @@ if __name__ == "__main__":
     r2_test_scores[tuple(keys[0])], np.mean(r2_test_scores[tuple(keys[0])])
 
     # Impact of single vegetation variable inclusion on mean scores
-    for var in ["VOD", "LAI", "SIF", "FAPAR"]:
+    for var in variable.feature_categories[variable.Category.VEGETATION]:
         vod_means = defaultdict(list)
         for i in range(6):
             for key, mean_r2 in zip(keys, mean_r2_test_scores):

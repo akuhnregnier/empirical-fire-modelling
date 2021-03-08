@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 from wildfires.dask_cx1 import get_client
 
-from ..cache import check_in_store
 from ..exceptions import NotCachedError
 from .core import get_model
 
@@ -13,8 +12,7 @@ def call_get_model_check_cache(X_train, y_train, param_dict, cache_check=False):
 
     Args:
         X_train, y_train, param_dict: See `get_model()`.
-        cache_check (bool): If True, use `check_in_store()` to verify that the call is
-            already cached.
+        cache_check (bool): If True, verify that the call is already cached.
 
     Raises:
         NotCachedError: If `cache_check` and the call to `get_model()` is not already
@@ -28,7 +26,7 @@ def call_get_model_check_cache(X_train, y_train, param_dict, cache_check=False):
     client = None
     cached_model = True
     try:
-        check_in_store(get_model, X_train, y_train, param_dict)
+        get_model(X_train, y_train, param_dict, cache_check=True)
     except NotCachedError:
         cached_model = False
 

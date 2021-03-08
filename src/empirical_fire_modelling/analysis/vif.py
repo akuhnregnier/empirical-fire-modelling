@@ -1,15 +1,9 @@
 # -*- coding: utf-8 -*-
 """VIF calculation."""
-import os
 
 from wildfires.analysis import vif
 
 from ..cache import cache
-
-if "TQDMAUTO" in os.environ:
-    pass
-else:
-    pass
 
 
 @cache

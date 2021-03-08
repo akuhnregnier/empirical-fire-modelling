@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """SHAP value analysis."""
 import math
-import os
 
 import numpy as np
 import shap
@@ -9,12 +8,7 @@ from wildfires.utils import match_shape
 
 from ..cache import cache
 from ..configuration import shap_job_samples
-from ..utils import get_mm_indices
-
-if "TQDMAUTO" in os.environ:
-    from tqdm.auto import tqdm
-else:
-    from tqdm import tqdm
+from ..utils import get_mm_indices, tqdm
 
 
 def get_shap_params(X_train):

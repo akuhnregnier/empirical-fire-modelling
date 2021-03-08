@@ -5,11 +5,7 @@ from pathlib import Path
 import cloudpickle
 from wildfires.logging_config import enable_logging
 from wildfires.qstat import get_ncpus
-
-if "TQDMAUTO" in os.environ:
-    from tqdm.auto import tqdm
-else:
-    from tqdm import tqdm
+from empirical_fire_modelling.utils import tqdm
 
 {%- if pythonpath is defined %}
 sys.path = {{pythonpath}}

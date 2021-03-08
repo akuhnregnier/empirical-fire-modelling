@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Model fitting."""
 import logging
-import os
 import sys
 import warnings
 from pathlib import Path
@@ -9,17 +8,12 @@ from pathlib import Path
 import matplotlib as mpl
 from loguru import logger as loguru_logger
 
-from empirical_fire_modelling.cache import IN_STORE, check_in_store
+from empirical_fire_modelling.cache import IN_STORE
 from empirical_fire_modelling.configuration import Experiment, param_dict
 from empirical_fire_modelling.cx1 import run
 from empirical_fire_modelling.data import get_experiment_split_data
 from empirical_fire_modelling.logging_config import enable_logging
 from empirical_fire_modelling.model import call_get_model_check_cache
-
-if "TQDMAUTO" in os.environ:
-    pass
-else:
-    pass
 
 mpl.rc_file(Path(__file__).resolve().parent / "matplotlibrc")
 
@@ -41,7 +35,7 @@ warnings.filterwarnings(
 
 def fit_experiment_model(experiment, cache_check=False, **kwargs):
     if cache_check:
-        check_in_store(get_experiment_split_data, experiment)
+        get_experiment_split_data.check_in_store(experiment)
     X_train, X_test, y_train, y_test = get_experiment_split_data(experiment)
 
     model, client = call_get_model_check_cache(
@@ -53,7 +47,4 @@ def fit_experiment_model(experiment, cache_check=False, **kwargs):
 
 
 if __name__ == "__main__":
-    # Relevant if called with the command 'cx1' instead of 'local'.
-    cx1_kwargs = dict(walltime="06:00:00", ncpus=1, mem="7GB")
-
-    run(fit_experiment_model, list(Experiment), cx1_kwargs=cx1_kwargs)
+    run(fit_experiment_model, list(Experiment), cx1_kwargs=False)

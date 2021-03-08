@@ -6,7 +6,7 @@ from sklearn.metrics import mean_squared_error, r2_score
 from wildfires.dask_cx1 import DaskRandomForestRegressor
 from wildfires.qstat import get_ncpus
 
-from ..cache import cache, check_in_store
+from ..cache import cache
 
 __all__ = (
     "get_model",
@@ -26,7 +26,7 @@ def _get_model(X_train, y_train, param_dict):
 def get_model(X_train, y_train, param_dict, cache_check=False):
     """Perform model fitting if needed and set the `n_jobs` parameter."""
     if cache_check:
-        return check_in_store(_get_model, X_train, y_train, param_dict)
+        return _get_model.check_in_store(X_train, y_train, param_dict)
     model = _get_model(X_train, y_train, param_dict)
     model.n_jobs = get_ncpus()
     return model
@@ -34,6 +34,7 @@ def get_model(X_train, y_train, param_dict, cache_check=False):
 
 @cache
 def get_model_scores(model, X_test, X_train, y_test, y_train):
+    # XXX: Get train OOB score (check Dask impl.), train CV score
     model.n_jobs = get_ncpus()
 
     with parallel_backend("threading", n_jobs=get_ncpus()):

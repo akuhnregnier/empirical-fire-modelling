@@ -1,16 +1,10 @@
 # -*- coding: utf-8 -*-
 """PFI calculation."""
-import os
 
 import eli5
 from wildfires.qstat import get_ncpus
 
 from ..cache import cache
-
-if "TQDMAUTO" in os.environ:
-    pass
-else:
-    pass
 
 
 @cache

@@ -13,13 +13,12 @@ from wildfires.analysis import cube_plotting as orig_cube_plotting
 from wildfires.utils import shorten_features, simple_sci_format, update_nested_dict
 
 from ..configuration import (
-    experiment_name_dict,
     figure_save_dir,
     figure_saver_kwargs,
-    lags,
     main_experiments,
     map_figure_saver_kwargs,
 )
+from ..variable import lags
 
 __all__ = (
     "SetupFourMapAxes",
@@ -42,12 +41,6 @@ experiment_colors = sns.color_palette("Set2")
 experiment_color_dict = {
     experiment: color for experiment, color in zip(main_experiments, experiment_colors)
 }
-experiment_color_dict.update(
-    {
-        experiment_name_dict[experiment]: experiment_color_dict[experiment]
-        for experiment in main_experiments
-    }
-)
 
 # 9 colors used to differentiate varying the lags throughout.
 lag_colors = sns.color_palette("Set1", desat=0.85)
@@ -59,12 +52,6 @@ experiment_marker_dict = {
     experiment: marker
     for experiment, marker in zip(main_experiments, experiment_markers)
 }
-experiment_marker_dict.update(
-    {
-        experiment_name_dict[experiment]: experiment_marker_dict[experiment]
-        for experiment in main_experiments
-    }
-)
 
 
 def cube_plotting(*args, **kwargs):
