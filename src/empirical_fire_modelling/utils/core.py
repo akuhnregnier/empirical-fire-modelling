@@ -29,8 +29,8 @@ __all__ = (
 
 def transform_series_sum_norm(x):
     """Transform a DataFrame using the sum of absolute values."""
-    if not isinstance(x, pd.DataFrame):
-        raise ValueError(f"Expected pandas.DataFrame, got '{x}'.")
+    if not isinstance(x, pd.Series):
+        raise ValueError(f"Expected pandas.Series, got '{x}'.")
     x = x / np.sum(np.abs(x))
     return x
 
