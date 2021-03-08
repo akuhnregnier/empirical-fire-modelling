@@ -23,7 +23,7 @@ loguru_logger.remove()
 loguru_logger.add(sys.stderr, level="WARNING")
 
 logger = logging.getLogger(__name__)
-enable_logging(level="DEBUG")
+enable_logging(level="WARNING")
 
 warnings.filterwarnings("ignore", ".*Collapsing a non-contiguous coordinate.*")
 warnings.filterwarnings("ignore", ".*DEFAULT_SPHERICAL_EARTH_RADIUS.*")

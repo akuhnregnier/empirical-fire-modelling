@@ -4,6 +4,7 @@ import logging
 import sys
 import warnings
 from pathlib import Path
+from pprint import pprint
 
 import matplotlib as mpl
 import pandas as pd
@@ -79,10 +80,11 @@ if __name__ == "__main__":
     vis_data = {}
     for experiment, exp_results in zip(experiments, loco_results):
         for leave_out, results in exp_results.items():
-            vis_data[(experiment.name, str(leave_out))] = results
-    vis_df = pd.DataFrame(vis_data).T
-    vis_df.index.names = ["experiment", "feature"]
-    vis_df.rename(
+            vis_data[(experiment, leave_out)] = results
+
+    combined_df = pd.DataFrame(vis_data).T
+    combined_df.index.names = ["experiment", "feature"]
+    combined_df.rename(
         {
             "score": "train score",
             "mse": "train mse",
@@ -92,4 +94,13 @@ if __name__ == "__main__":
         inplace=True,
         axis="columns",
     )
-    print(vis_df)
+
+    loco_importances = {}
+    for experiment, df in combined_df.groupby("experiment"):
+        df.index = df.index.droplevel("experiment")
+        reference_scores = df.loc[""]
+        df = df.drop("", axis="index")
+        df = reference_scores - df
+        loco_importances[experiment] = df.sort_values(by="test score", ascending=False)
+
+    pprint(loco_importances)
