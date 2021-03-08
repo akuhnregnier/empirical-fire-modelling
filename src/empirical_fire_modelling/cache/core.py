@@ -41,7 +41,7 @@ __all__ = (
 IN_STORE = object()
 
 register_backend()
-_memory = get_memory("empirical_fire_modelling", backend="custom", verbose=2)
+_memory = get_memory("empirical_fire_modelling", backend="custom", verbose=0)
 
 
 def checkattr(name):

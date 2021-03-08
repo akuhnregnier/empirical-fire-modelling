@@ -29,15 +29,48 @@ def get_shap_params(X_train):
     return shap_params
 
 
-@cache
-def get_shap_values(rf, X, data=None, interaction=False):
+@cache(ignore=["verbose"])
+def get_shap_values(rf, X, data=None, interaction=False, verbose=True):
     """Calculate SHAP values for `X`.
+
     When `data` is None, `feature_perturbation='tree_path_dependent'` by default.
+
+    If `X.shape[0] > configuration.shap_job_samples`, this function will chunk `X`
+    along its first axis und call `get_shap_values` using these smaller chunks
+    repeatedly until SHAP values for all chunks have been computed. It will then
+    return the collated results.
+
     """
+    if data is not None:
+        raise NotImplementedError(
+            "Would have to implement more, e.g. chunking of `data`."
+        )
+
     if data is None:
         feature_perturbation = "tree_path_dependent"
     else:
         feature_perturbation = "interventional"
+
+    shap_params = get_shap_params(X)
+    max_chunk_index = shap_params["max_index"] + 1  # Add 1 (non-inclusive upper lim).
+    if max_chunk_index > 1:
+        shap_arrs = []
+        for start_index in tqdm(
+            range(max_chunk_index), desc="SHAP value chunks", disable=not verbose
+        ):
+            shap_arrs.append(
+                get_shap_values(
+                    rf,
+                    X.iloc[
+                        start_index
+                        * shap_params["job_samples"] : (start_index + 1)
+                        * shap_params["job_samples"]
+                    ],
+                    data=data,
+                    interaction=interaction,
+                )
+            )
+        return np.vstack(shap_arrs)
 
     explainer = shap.TreeExplainer(
         rf, data=data, feature_perturbation=feature_perturbation
