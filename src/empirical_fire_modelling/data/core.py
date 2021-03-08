@@ -220,9 +220,8 @@ def _get_processed_data(
     assert exog_data.shape[1] == 50
 
     return (
-        # XXX: testing
-        endog_data.iloc[:10000],
-        exog_data.iloc[:10000],
+        endog_data,
+        exog_data,
         master_mask,
         filled_datasets,
         masked_datasets,
