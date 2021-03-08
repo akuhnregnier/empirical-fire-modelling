@@ -203,6 +203,9 @@ def run(func, *args, cx1_kwargs=None, get_parsers=get_parsers, **kwargs):
     For checking the presence of cached data, the given function should accept a
     `cache_check` keyword argument that will be set to True when checking is desired.
 
+    Note also that functions running on CX1 will not try to connect to a distributed
+    Dask scheduler, instead spawning a local Client with $NCPUS threads.
+
     Args:
         func (callable): Function to be run.
         *args (length-N iterables): Function arguments. These will be zipped before

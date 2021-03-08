@@ -6,8 +6,10 @@ from copy import copy
 
 import numpy as np
 import pandas as pd
+from dask.distributed import Client
 from sklearn.model_selection import train_test_split
-from wildfires.dask_cx1 import get_client
+from wildfires.dask_cx1 import get_client as wildfires_get_client
+from wildfires.qstat import get_ncpus
 
 from ..configuration import train_test_split_kwargs
 from ..exceptions import NotCachedError
@@ -72,6 +74,20 @@ def get_mm_data(x, master_mask, kind):
     else:
         raise ValueError(f"Unknown kind: {kind}")
     return masked_data
+
+
+def get_client(*args, **kwargs):
+    """Wrapper around wildfires.dask_cx1.get_client.
+
+    Only tries to connect to a distributed scheduler if not running as a CX1 job. This
+    is controlled by an environment variable.
+
+    """
+    if "RUNNING_AS_JOB" in os.environ:
+        # Do not connect to a distributed scheduler.
+        return Client(n_workers=1, threads_per_worker=get_ncpus())
+    else:
+        return wildfires_get_client(*args, **kwargs)
 
 
 def optional_client_call(func, call_kwargs, cache_check=False, add_client=False):

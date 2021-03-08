@@ -11,6 +11,8 @@ from empirical_fire_modelling.utils import tqdm
 sys.path = {{pythonpath}}
 {%- endif %}
 
+os.environ['RUNNING_AS_JOB'] = '1'
+
 enable_logging(level="DEBUG")
 
 index = int(os.environ.get("PBS_ARRAY_INDEX", 0))

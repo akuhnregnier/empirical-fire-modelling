@@ -16,11 +16,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from loguru import logger as loguru_logger
-from wildfires.dask_cx1 import (
-    DaskRandomForestRegressor,
-    dask_fit_combinations,
-    get_client,
-)
+from wildfires.dask_cx1 import DaskRandomForestRegressor, dask_fit_combinations
 from wildfires.qstat import get_ncpus
 
 from empirical_fire_modelling import variable
@@ -32,6 +28,7 @@ from empirical_fire_modelling.configuration import (
 )
 from empirical_fire_modelling.data import get_experiment_split_data
 from empirical_fire_modelling.logging_config import enable_logging
+from empirical_fire_modelling.utils import get_client
 
 mpl.rc_file(Path(__file__).resolve().parent / "matplotlibrc")
 
