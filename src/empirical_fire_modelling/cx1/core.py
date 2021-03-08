@@ -15,6 +15,7 @@ from subprocess import check_output
 import cloudpickle
 from jinja2 import Environment, FileSystemLoader
 
+from ..configuration import Experiment
 from ..exceptions import NoCX1Error, NotCachedError
 from ..utils import tqdm
 
@@ -37,6 +38,12 @@ def get_parsers():
     )
     parser.add_argument(
         "--uncached", action="store_true", help="only run uncached calls"
+    )
+    parser.add_argument(
+        "--experiment", help="select a specific experiment to run, e.g. 'ALL'"
+    )
+    parser.add_argument(
+        "--list-experiments", action="store_true", help="list available experiments"
     )
 
     subparsers = parser.add_subparsers(
@@ -223,6 +230,45 @@ def run(func, *args, cx1_kwargs=None, get_parsers=get_parsers, **kwargs):
     verbose = cmd_args.verbose
     single = cmd_args.single
     kwargs = {**dict(single=single, verbose=verbose), **kwargs}
+
+    if cmd_args.experiment is not None:
+        # Select all args matching the given experiment.
+        selected_experiment = Experiment[cmd_args.experiment]
+        # One of the args entries should contain Experiments.
+        exp_arg_indices = [
+            i for i in range(len(args)) if isinstance(args[i][0], Experiment)
+        ]
+        if len(exp_arg_indices) == 0:
+            raise ValueError(
+                "'--experiment' was given, but none of the args contains an "
+                "Experiment."
+            )
+        if len(exp_arg_indices) > 1:
+            raise ValueError(
+                "'--experiment' was given, but more than one of the args contains "
+                "an Experiment."
+            )
+        exp_arg_index = exp_arg_indices[0]
+        if not all(isinstance(arg, Experiment) for arg in args[exp_arg_index]):
+            raise ValueError(
+                "'--experiment' was given, but the args starting with an Experiment "
+                "contained other types too."
+            )
+        args = tuple(
+            zip(
+                *(
+                    single_args
+                    for single_args in zip(*args)
+                    if single_args[exp_arg_index] == selected_experiment
+                )
+            )
+        )
+
+    if cmd_args.list_experiments:
+        print("Available experiments:")
+        for exp in Experiment:
+            print(" -", exp.name)
+        sys.exit(0)
 
     if single:
         # Only run a single iteration.
