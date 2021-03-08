@@ -122,6 +122,7 @@ def optional_client_call(func, call_kwargs, cache_check=False, add_client=False)
         else:
             # Get Dask client that is needed for model fitting.
             client = get_client(fallback=True, fallback_threaded=True)
-            call_kwargs["client"] = client
+            if add_client:
+                call_kwargs["client"] = client
 
     return func(**call_kwargs), client
