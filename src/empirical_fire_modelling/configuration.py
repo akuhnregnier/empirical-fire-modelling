@@ -295,7 +295,7 @@ default_param_dict = immutabledict(random_state=1, bootstrap=True, oob_score=Tru
 
 # XXX: Debug parameters!
 param_dict = immutabledict(
-    {**dict(max_depth=15, n_estimators=50), **default_param_dict}
+    {**dict(max_depth=15, n_estimators=150), **default_param_dict}
 )
 
 # Training and validation test splitting.
