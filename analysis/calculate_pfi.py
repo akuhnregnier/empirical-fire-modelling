@@ -10,7 +10,7 @@ import matplotlib as mpl
 from loguru import logger as loguru_logger
 
 from empirical_fire_modelling.analysis.pfi import calculate_pfi
-from empirical_fire_modelling.configuration import Experiment, param_dict
+from empirical_fire_modelling.configuration import Experiment
 from empirical_fire_modelling.cx1 import run
 from empirical_fire_modelling.data import get_experiment_split_data
 from empirical_fire_modelling.logging_config import enable_logging
@@ -48,8 +48,8 @@ def pfi_calc(experiment, cache_check=False, **kwargs):
     X_train, X_test, y_train, y_test = get_experiment_split_data(experiment)
 
     # Operate on cached fitted models only.
-    get_model(X_train, y_train, param_dict, cache_check=True)
-    rf = get_model(X_train, y_train, param_dict)
+    get_model(X_train, y_train, cache_check=True)
+    rf = get_model(X_train, y_train)
 
     # Test data.
     pfi_test_args = (rf, X_test, y_test)

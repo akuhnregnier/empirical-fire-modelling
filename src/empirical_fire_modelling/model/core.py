@@ -7,6 +7,7 @@ from wildfires.dask_cx1 import DaskRandomForestRegressor
 from wildfires.qstat import get_ncpus
 
 from ..cache import cache
+from ..configuration import param_dict
 
 __all__ = (
     "get_model",
@@ -15,7 +16,7 @@ __all__ = (
 
 
 @cache
-def _get_model(X_train, y_train, param_dict):
+def _get_model(X_train, y_train, param_dict=param_dict):
     """Perform model fitting."""
     model = DaskRandomForestRegressor(**param_dict)
     with parallel_backend("dask"):
@@ -23,11 +24,11 @@ def _get_model(X_train, y_train, param_dict):
     return model
 
 
-def get_model(X_train, y_train, param_dict, cache_check=False):
+def get_model(X_train, y_train, cache_check=False):
     """Perform model fitting if needed and set the `n_jobs` parameter."""
     if cache_check:
-        return _get_model.check_in_store(X_train, y_train, param_dict)
-    model = _get_model(X_train, y_train, param_dict)
+        return _get_model.check_in_store(X_train, y_train)
+    model = _get_model(X_train, y_train)
     model.n_jobs = get_ncpus()
     return model
 

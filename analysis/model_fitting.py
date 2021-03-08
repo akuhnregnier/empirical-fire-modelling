@@ -9,11 +9,12 @@ import matplotlib as mpl
 from loguru import logger as loguru_logger
 
 from empirical_fire_modelling.cache import IN_STORE
-from empirical_fire_modelling.configuration import Experiment, param_dict
+from empirical_fire_modelling.configuration import Experiment
 from empirical_fire_modelling.cx1 import run
 from empirical_fire_modelling.data import get_experiment_split_data
 from empirical_fire_modelling.logging_config import enable_logging
-from empirical_fire_modelling.model import call_get_model_check_cache
+from empirical_fire_modelling.model import get_model
+from empirical_fire_modelling.utils import optional_client_call
 
 mpl.rc_file(Path(__file__).resolve().parent / "matplotlibrc")
 
@@ -38,9 +39,11 @@ def fit_experiment_model(experiment, cache_check=False, **kwargs):
         get_experiment_split_data.check_in_store(experiment)
     X_train, X_test, y_train, y_test = get_experiment_split_data(experiment)
 
-    model, client = call_get_model_check_cache(
-        X_train, y_train, param_dict, cache_check=cache_check
-    )
+    model = optional_client_call(
+        get_model,
+        dict(X_train=X_train, y_train=y_train),
+        cache_check=cache_check,
+    )[0]
     if cache_check:
         return IN_STORE
     return model

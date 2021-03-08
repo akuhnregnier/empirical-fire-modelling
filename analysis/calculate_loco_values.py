@@ -4,22 +4,19 @@ import logging
 import sys
 import warnings
 from pathlib import Path
-from pprint import pprint
 
 import matplotlib as mpl
+import pandas as pd
 from loguru import logger as loguru_logger
-from wildfires.dask_cx1 import get_client
 
 from empirical_fire_modelling.analysis.loco import calculate_loco
-from empirical_fire_modelling.configuration import (
-    Experiment,
-    param_dict,
-    selected_features,
-)
+from empirical_fire_modelling.cache import IN_STORE
+from empirical_fire_modelling.configuration import Experiment, selected_features
 from empirical_fire_modelling.cx1 import run
 from empirical_fire_modelling.data import get_experiment_split_data
 from empirical_fire_modelling.logging_config import enable_logging
 from empirical_fire_modelling.model import get_model
+from empirical_fire_modelling.utils import optional_client_call
 
 mpl.rc_file(Path(__file__).resolve().parent / "matplotlibrc")
 
@@ -39,13 +36,11 @@ warnings.filterwarnings(
 )
 
 
-def loco_calc(experiment, leave_out, cache_check=False, **kwargs):
+def loco_calc(experiment, cache_check=False, **kwargs):
     """Calculate LOCO values.
 
     Args:
         experiment (str): Experiment (e.g. 'ALL').
-        leave_out (iterable of column names): Column names to exclude. Empty string
-            for no excluded columns (i.e. the baseline with all columns).
         cache_check (bool): Whether to check for cached data exclusively.
 
     """
@@ -54,25 +49,36 @@ def loco_calc(experiment, leave_out, cache_check=False, **kwargs):
     X_train, X_test, y_train, y_test = get_experiment_split_data(experiment)
 
     # Operate on cached fitted models only.
-    get_model(X_train, y_train, param_dict, cache_check=True)
-    rf = get_model(X_train, y_train, param_dict)
+    get_model(X_train, y_train, cache_check=True)
+    rf = get_model(X_train, y_train)
 
-    client = get_client(fallback=True, fallback_threaded=True)
+    loco_results = optional_client_call(
+        calculate_loco,
+        dict(
+            rf=rf,
+            X_train=X_train,
+            y_train=y_train,
+            X_test=X_test,
+            y_test=y_test,
+            leave_out=("", *selected_features[experiment]),
+            local_n_jobs=1,
+        ),
+        cache_check=cache_check,
+        add_client=True,
+    )[0]
 
-    loco_kwargs = dict(
-        rf=rf,
-        X_train=X_train,
-        y_train=y_train,
-        X_test=X_test,
-        y_test=y_test,
-        client=client,
-        leave_out=("", *selected_features[experiment]),
-        local_n_jobs=1,
-    )
     if cache_check:
-        return calculate_loco.check_in_store(**loco_kwargs)
-    return calculate_loco(**loco_kwargs)
+        return IN_STORE
+    return loco_results
 
 
 if __name__ == "__main__":
-    pprint(run(loco_calc, list(Experiment), cx1_kwargs=False))
+    experiments = list(Experiment)
+    loco_results = run(loco_calc, experiments, cx1_kwargs=False)
+
+    vis_data = {}
+    for experiment, exp_results in zip(experiments, loco_results):
+        for leave_out, results in exp_results.items():
+            vis_data[(experiment.name, str(leave_out))] = results
+    vis_df = pd.DataFrame(vis_data).T
+    print(vis_df)

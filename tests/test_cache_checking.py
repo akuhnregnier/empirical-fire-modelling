@@ -156,3 +156,31 @@ def test_multiple_function_cache(test_cache):
     # Now test the previously cached versions.
     assert dummy_func1(0) == 1
     assert dummy_func2(0) == 2
+
+
+def test_default_arg_invalidation(test_cache):
+    """The cache should be invalidated if default arguments change."""
+
+    @test_cache
+    def f(x, y=2):
+        """Function to be cached."""
+        return x + y
+
+    with pytest.raises(NotCachedError):
+        f.check_in_store(1)
+
+    assert f(1) == 3
+    assert f.check_in_store(1)
+
+    # Redefining the default arguments should invalidate the cache.
+
+    @test_cache
+    def f(x, y=1):
+        """Function to be cached."""
+        return x + y
+
+    with pytest.raises(NotCachedError):
+        f.check_in_store(1)
+
+    assert f(1) == 2
+    assert f.check_in_store(1)

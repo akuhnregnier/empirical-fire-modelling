@@ -121,9 +121,11 @@ def mark_dependency(f):
     return f
 
 
-def _get_hashed(func, *args, dependencies=(), hash_func=custom_get_hash, **kwargs):
+def _get_hashed(
+    func, *args, dependencies=(), hash_func=custom_get_hash, ignore=None, **kwargs
+):
     """Calculate a hash for the call, including dependencies."""
-    args, kwargs = extract_uniform_args_kwargs(func, *args, **kwargs)
+    args, kwargs = extract_uniform_args_kwargs(func, *args, ignore=ignore, **kwargs)
 
     # Go through the original arguments and hash the contents manually.
     args_hashes = []
@@ -147,7 +149,9 @@ def _get_hashed(func, *args, dependencies=(), hash_func=custom_get_hash, **kwarg
     )
 
 
-def cache(*args, memory=_memory, dependencies=(), hash_func=custom_get_hash):
+def cache(
+    *args, memory=_memory, dependencies=(), hash_func=custom_get_hash, ignore=None
+):
     """A cached function with limited MaskedArray support.
 
     The added method `check_in_store()` will be added and may be used to determine
@@ -163,6 +167,9 @@ def cache(*args, memory=_memory, dependencies=(), hash_func=custom_get_hash):
             will be invalidated.
         hash_func (callable): Function used to calculate hash values of function
             arguments.
+        ignore (iterable of str or None): Arguments to ignore when computing the
+            argument hash. This means that changes to those arguments will not cause
+            the cache to become invalidated.
 
     Returns:
         callable: The cached function with added `check_in_store()` method.
@@ -174,6 +181,7 @@ def cache(*args, memory=_memory, dependencies=(), hash_func=custom_get_hash):
             memory=memory,
             dependencies=dependencies,
             hash_func=hash_func,
+            ignore=ignore,
         )
 
     assert len(args) == 1
@@ -207,6 +215,7 @@ def cache(*args, memory=_memory, dependencies=(), hash_func=custom_get_hash):
             *orig_args,
             dependencies=dependencies,
             hash_func=hash_func,
+            ignore=ignore,
             **orig_kwargs,
         )
 
