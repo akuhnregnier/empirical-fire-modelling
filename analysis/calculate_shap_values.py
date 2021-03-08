@@ -11,7 +11,7 @@ from loguru import logger as loguru_logger
 
 from empirical_fire_modelling.analysis.shap import get_shap_params, get_shap_values
 from empirical_fire_modelling.configuration import Experiment
-from empirical_fire_modelling.cx1 import parse_args, run
+from empirical_fire_modelling.cx1 import get_parsers, run
 from empirical_fire_modelling.data import get_experiment_split_data
 from empirical_fire_modelling.logging_config import enable_logging
 from empirical_fire_modelling.model import get_model
@@ -67,12 +67,15 @@ if __name__ == "__main__":
 
     args = [[], []]
     experiments = list(Experiment)
-    chosen_experiments = experiments[: 1 if parse_args().single else None]
+
+    cmd_args = get_parsers()["parser"].parse_args()
+
+    chosen_experiments = experiments[: 1 if cmd_args.single else None]
 
     for experiment in tqdm(
         chosen_experiments,
         desc="Preparing SHAP arguments",
-        disable=not parse_args().verbose,
+        disable=not cmd_args.verbose,
     ):
         N = get_shap_params(get_experiment_split_data(experiment)[0])["max_index"] + 1
         indices = np.arange(N)
