@@ -102,6 +102,9 @@ if __name__ == "__main__":
 
     raw_shap_data = run(shap_values, *args, cx1_kwargs=cx1_kwargs)
 
+    if raw_shap_data is None:
+        sys.exit(0)
+
     if not cmd_args.single:
         # Load all data, which is faster using `get_shap_values()` along with all
         # data to cache the loading and concatenation of the individual entries.

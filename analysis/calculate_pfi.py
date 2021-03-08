@@ -73,6 +73,8 @@ if __name__ == "__main__":
 
     experiments = list(Experiment)
     pfi_results = run(pfi_calc, experiments, cx1_kwargs=cx1_kwargs)
+    if pfi_results is None:
+        sys.exit(0)
 
     pfi_importances = {}
     for exp, pfi_result in zip(experiments, pfi_results):
