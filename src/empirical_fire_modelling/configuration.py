@@ -294,9 +294,7 @@ n_splits = 5
 default_param_dict = immutabledict(random_state=1, bootstrap=True, oob_score=True)
 
 # XXX: Debug parameters!
-param_dict = immutabledict(
-    {**dict(max_depth=15, n_estimators=50), **default_param_dict}
-)
+param_dict = immutabledict({**dict(max_depth=15, n_estimators=5), **default_param_dict})
 
 # Training and validation test splitting.
 train_test_split_kwargs = immutabledict(random_state=1, shuffle=True, test_size=0.3)

@@ -234,6 +234,10 @@ def run(func, *args, cx1_kwargs=None, get_parsers=get_parsers, **kwargs):
     single = cmd_args.single
     kwargs = {**dict(single=single, verbose=verbose), **kwargs}
 
+    if len(args) == 0 or len(args[0]) == 0:
+        print("No args given.")
+        return
+
     if cmd_args.experiment is not None:
         # Select all args matching the given experiment.
         selected_experiment = Experiment[cmd_args.experiment]

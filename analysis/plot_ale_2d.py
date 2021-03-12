@@ -79,6 +79,6 @@ def plot_2d_ale(experiment, single=False, verbose=False, **kwargs):
 
 if __name__ == "__main__":
     # Relevant if called with the command 'cx1' instead of 'local'.
-    cx1_kwargs = dict(walltime="01:00:00", ncpus=1, mem="25GB")
+    cx1_kwargs = dict(walltime="01:00:00", ncpus=1, mem="10GB")
 
     run(plot_2d_ale, list(Experiment), cx1_kwargs=cx1_kwargs)

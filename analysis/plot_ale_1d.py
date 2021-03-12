@@ -37,7 +37,9 @@ warnings.filterwarnings(
 )
 
 
-def plot_1d_ale(experiment, single=False, verbose=False, **kwargs):
+def plot_1d_ale(
+    experiment, plot_monte_carlo=True, single=False, verbose=False, **kwargs
+):
     exp_figure_saver = figure_saver(sub_directory=str(experiment))
 
     # Operate on cached data only.
@@ -50,7 +52,7 @@ def plot_1d_ale(experiment, single=False, verbose=False, **kwargs):
 
     def param_iter():
         for column in X_train.columns:
-            for monte_carlo in [False, True]:
+            for monte_carlo in [False, True] if plot_monte_carlo else [False]:
                 yield column, monte_carlo
 
     if single:
@@ -76,6 +78,5 @@ def plot_1d_ale(experiment, single=False, verbose=False, **kwargs):
 
 if __name__ == "__main__":
     # Relevant if called with the command 'cx1' instead of 'local'.
-    cx1_kwargs = dict(walltime="01:00:00", ncpus=1, mem="25GB")
-
-    run(plot_1d_ale, list(Experiment), cx1_kwargs=cx1_kwargs)
+    cx1_kwargs = dict(walltime="01:00:00", ncpus=1, mem="8GB")
+    run(plot_1d_ale, list(Experiment), plot_monte_carlo=False, cx1_kwargs=cx1_kwargs)

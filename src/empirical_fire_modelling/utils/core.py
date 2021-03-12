@@ -21,6 +21,7 @@ else:
 
 
 __all__ = (
+    "get_client",
     "get_mm_data",
     "get_mm_indices",
     "optional_client_call",

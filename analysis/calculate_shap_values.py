@@ -3,7 +3,9 @@
 import logging
 import sys
 import warnings
+from operator import attrgetter
 from pathlib import Path
+from pprint import pprint
 
 import matplotlib as mpl
 import numpy as np
@@ -72,7 +74,14 @@ if __name__ == "__main__":
 
     cmd_args = get_parsers()["parser"].parse_args()
 
-    chosen_experiments = experiments[: 1 if cmd_args.single else None]
+    if cmd_args.experiment is not None:
+        chosen_experiments = [
+            exp for exp in experiments if exp == Experiment[cmd_args.experiment]
+        ]
+    else:
+        chosen_experiments = experiments.copy()
+
+    chosen_experiments = chosen_experiments[: 1 if cmd_args.single else None]
 
     run_experiments = []
     for experiment in chosen_experiments:
@@ -103,25 +112,33 @@ if __name__ == "__main__":
     raw_shap_data = run(shap_values, *args, cx1_kwargs=cx1_kwargs)
 
     if raw_shap_data is None:
+        if run_experiments:
+            # Experiments were submitted as CX1 jobs.
+            sys.exit(0)
+        # Otherwise, experiments were already present as a fully cached value.
+
+    if isinstance(raw_shap_data, dict) and set(raw_shap_data) == {
+        "present",
+        "uncached",
+    }:
+        # Checking was performed.
+        print("Full cache present for:", end="")
+        pprint(
+            set(map(attrgetter("name"), set(chosen_experiments) - set(run_experiments)))
+        )
         sys.exit(0)
 
-    if not cmd_args.single:
-        # Load all data, which is faster using `get_shap_values()` along with all
-        # data to cache the loading and concatenation of the individual entries.
-        experiment_shap_data = {}
-        for experiment in tqdm(
-            chosen_experiments,
-            desc="Loading joined SHAP data",
-            disable=not cmd_args.verbose,
-        ):
-            X_train, X_test, y_train, y_test = get_experiment_split_data(experiment)
-            rf = get_model(X_train, y_train)
-            experiment_shap_data[experiment] = get_shap_values(rf, X_train)
-    else:
-        # Only a single iteration.
-        assert len(chosen_experiments) == 1
-        assert len(raw_shap_data) == len(run_experiments)
-        experiment_shap_data = {chosen_experiments[0]: raw_shap_data[0]}
+    # Load all data, which is faster using `get_shap_values()` along with all
+    # data to cache the loading and concatenation of the individual entries.
+    experiment_shap_data = {}
+    for experiment in tqdm(
+        chosen_experiments,
+        desc="Loading joined SHAP data",
+        disable=not cmd_args.verbose,
+    ):
+        X_train, X_test, y_train, y_test = get_experiment_split_data(experiment)
+        rf = get_model(X_train, y_train)
+        experiment_shap_data[experiment] = get_shap_values(rf, X_train)
 
     shap_importances = {}
     for exp, shap_arr in tqdm(experiment_shap_data.items()):

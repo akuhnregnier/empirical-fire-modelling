@@ -101,6 +101,13 @@ if __name__ == "__main__":
         reference_scores = df.loc[""]
         df = df.drop("", axis="index")
         df = reference_scores - df
+        df["train mse"] = -df["train mse"]
+        df["test mse"] = -df["test mse"]
+        df.rename(
+            {"train mse": "train -mse", "test mse": "test -mse"},
+            inplace=True,
+            axis="columns",
+        )
         loco_importances[experiment] = df.sort_values(by="test score", ascending=False)
 
     pprint(loco_importances)
