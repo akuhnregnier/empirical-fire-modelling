@@ -257,7 +257,7 @@ def _get_offset_exog_data(
 
 @cache(dependencies=(_get_processed_data, _get_offset_exog_data))
 @mark_dependency
-def get_data(experiment="ALL"):
+def get_data(experiment=Experiment.ALL):
     """Get data for a given experiment."""
     (
         endog_data,
