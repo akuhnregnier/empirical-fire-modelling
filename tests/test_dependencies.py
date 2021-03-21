@@ -362,3 +362,69 @@ def test_multiple_chained_dependencies(test_cache, redefine):
         assert f0(1) == 3
         assert f1(1) == -4
         assert f2(1) == 96
+
+
+def test_chained_uncached_dependencies(test_cache):
+    """Test cache is invalidated when chained uncached dependencies change."""
+
+    @mark_dependency
+    def f(x=0):
+        return x + 1
+
+    @test_cache(dependencies=(f,))
+    @mark_dependency
+    def f1(x=0):
+        return f(x) - 10
+
+    @test_cache(dependencies=(f1,))
+    @mark_dependency
+    def f2(x):
+        return f1(x) + 100
+
+    assert f(1) == 2
+    assert f1(1) == -8
+    assert f2(1) == 92
+
+    # Defining the same functions as above should not invalidate the previous cache
+    # entries.
+
+    @mark_dependency
+    def f(x=0):
+        return x + 1
+
+    @test_cache(dependencies=(f,))
+    @mark_dependency
+    def f1(x=0):
+        return f(x) - 10
+
+    @test_cache(dependencies=(f1,))
+    @mark_dependency
+    def f2(x):
+        return f1(x) + 100
+
+    for func in (f1, f2):
+        assert func.check_in_store(1)
+
+    # However, redefining `f` should invalidate all cache entries.
+
+    @mark_dependency
+    def f(x=0):
+        return x + 2
+
+    @test_cache(dependencies=(f,))
+    @mark_dependency
+    def f1(x=0):
+        return f(x) - 10
+
+    @test_cache(dependencies=(f1,))
+    @mark_dependency
+    def f2(x):
+        return f1(x) + 100
+
+    for func in (f1, f2):
+        with pytest.raises(NotCachedError):
+            func.check_in_store(1)
+
+    assert f(1) == 3
+    assert f1(1) == -7
+    assert f2(1) == 93
