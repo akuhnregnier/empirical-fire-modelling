@@ -262,6 +262,9 @@ SIF = VariableFactory(
 )
 
 GFED4_BA = StandardVariable(rank=0, name="GFED4 BA", shift=0, units="1", parent=None)
+MCD64CMQ_BA = StandardVariable(
+    rank=-1, name="MCD64CMQ BA", shift=0, units="1", parent=None
+)
 
 # Investigated lags.
 lags = (0, 1, 3, 6, 9, 12, 18, 24)
