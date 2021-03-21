@@ -27,6 +27,7 @@ Experiment = Enum(
         "CURRDD_SIF",
         "CURRDD_VOD",
         "BEST15",
+        "15VEG_FAPAR_MON",
     ],
 )
 
@@ -123,6 +124,23 @@ selected_features = dict(
             variable.POPD[0],
         ),
         Experiment["15VEG_FAPAR"]: (
+            variable.DRY_DAY_PERIOD[0],
+            variable.DRY_DAY_PERIOD[1],
+            variable.DRY_DAY_PERIOD[3],
+            variable.DRY_DAY_PERIOD[6],
+            variable.DRY_DAY_PERIOD[9],
+            variable.MAX_TEMP[0],
+            variable.PFT_CROP[0],
+            variable.POPD[0],
+            variable.PFT_HERB[0],
+            variable.AGB_TREE[0],
+            variable.FAPAR[0],
+            variable.FAPAR[1],
+            variable.FAPAR[3],
+            variable.FAPAR[6],
+            variable.FAPAR[9],
+        ),
+        Experiment["15VEG_FAPAR_MON"]: (
             variable.DRY_DAY_PERIOD[0],
             variable.DRY_DAY_PERIOD[1],
             variable.DRY_DAY_PERIOD[3],
@@ -294,7 +312,9 @@ n_splits = 5
 default_param_dict = immutabledict(random_state=1, bootstrap=True, oob_score=True)
 
 # XXX: Debug parameters!
-param_dict = immutabledict({**dict(max_depth=15, n_estimators=5), **default_param_dict})
+param_dict = immutabledict(
+    {**dict(max_depth=15, n_estimators=20), **default_param_dict}
+)
 
 # Training and validation test splitting.
 train_test_split_kwargs = immutabledict(random_state=1, shuffle=True, test_size=0.3)
