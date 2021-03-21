@@ -83,6 +83,7 @@ class HashProxy(Proxy):
 
 def register_backend():
     """Register custom backend for use with joblib memory."""
+    logger.debug("Registering custom Joblib backend.")
     register_store_backend("custom", CustomStoreBackend)
 
 
