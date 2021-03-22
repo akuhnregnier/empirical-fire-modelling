@@ -7,26 +7,13 @@ from operator import attrgetter, methodcaller
 import numpy as np
 import pandas as pd
 from dateutil.relativedelta import relativedelta
+from iris.time import PartialDateTime
 from sklearn.model_selection import train_test_split
 from wildfires.analysis import data_processing
-from wildfires.data import (
-    HYDE,
-    VODCA,
-    WWLLN,
-    AvitabileThurnerAGB,
-    Copernicus_SWI,
-    Datasets,
-    ERA5_DryDayPeriod,
-    ERA5_Temperature,
-    ESA_CCI_Landcover_PFT,
-    GFEDv4,
-    GlobFluo_SIF,
-    MOD15A2H_LAI_fPAR,
-    dataset_times,
-)
+from wildfires.data import Dataset, Datasets, dataset_times
 
 from .. import variable
-from ..cache import cache, mark_dependency
+from ..cache import cache, mark_dependency, process_proxy
 from ..configuration import Experiment, selected_features, train_test_split_kwargs
 
 __all__ = ("get_data", "get_experiment_split_data", "get_split_data")
@@ -34,56 +21,74 @@ __all__ = ("get_data", "get_experiment_split_data", "get_split_data")
 
 @cache
 @mark_dependency
-def _get_processed_data(
-    shift_months=variable.lags[1:],
-    persistent_perc=variable.st_persistent_perc,
-    season_trend_k=variable.st_k,
-    all_inst_features=selected_features[Experiment.CURR],
-    shifted_variables=variable.shifted_variables,
-    _variable_names=tuple(
-        map(
-            attrgetter("name", "shift"),
-            selected_features[Experiment.ALL],
-        )
-    ),
+def _basis_func(
+    *,
+    check_max_time,
+    check_min_time,
+    check_shift_min_time,
+    exp_features,
+    mask_ignore_n,
+    max_time=None,
+    min_time=None,
+    normal_n_time,
+    persistent_perc,
+    season_trend_k,
+    shift_n_time,
+    spec_datasets_to_shift,
+    spec_selection_datasets,
+    spec_shift_and_interp_datasets,
+    spec_temporal_interp_datasets,
+    target_var,
+    which,
+    all_shifted_variables=variable.shifted_variables,
+    # Store this initially, since this is changed as new datasets (e.g. filled
+    # datasets) are derived from the original datasets.
+    original_datasets=tuple(sorted(Dataset.datasets, key=attrgetter("__name__"))),
 ):
-    """Low-level function which carries out the basic data processing."""
-    target_variable = "GFED4 BA"
+    target_variable = target_var.name
 
-    # Variables required for the above.
     required_variables = [target_variable]
 
-    # Dataset selection.
+    shifted_variables = {var.parent for var in exp_features if var.shift != 0}
+    assert all(
+        shifted_var in all_shifted_variables for shifted_var in shifted_variables
+    )
 
-    selection_datasets = [
-        AvitabileThurnerAGB(),
-        ERA5_Temperature(),
-        ESA_CCI_Landcover_PFT(),
-        GFEDv4(),
-        HYDE(),
-        WWLLN(),
+    shift_months = [
+        shift for shift in sorted({var.shift for var in exp_features}) if shift != 0
     ]
 
-    # Datasets subject to temporal interpolation (filling).
-    temporal_interp_datasets = [
-        Datasets(Copernicus_SWI()).select_variables((variable.SWI.name,)).dataset
-    ]
+    def create_dataset_group(spec):
+        """Create a dataset groups from its specification."""
+        group = []
+        for dataset_name, selected_variables in spec.items():
+            # Select the relevant dataset.
+            matching_datasets = [
+                d for d in original_datasets if d.__name__ == dataset_name
+            ]
+            if not len(matching_datasets) == 1:
+                raise ValueError(
+                    f"Expected 1 matching dataset for '{dataset_name}', "
+                    f"got {matching_datasets}."
+                )
+            # Instantiate the matching Dataset.
+            matching_dataset = matching_datasets[0]()
+            if selected_variables:
+                # There are variables to select.
+                group.append(
+                    Datasets(matching_dataset)
+                    .select_variables(selected_variables)
+                    .dataset
+                )
+            else:
+                # There is nothing to select.
+                group.append(matching_dataset)
+        return group
 
-    # Datasets subject to temporal interpolation and shifting.
-    shift_and_interp_datasets = [
-        Datasets(MOD15A2H_LAI_fPAR())
-        .select_variables((variable.FAPAR.name, variable.LAI.name))
-        .dataset,
-        Datasets(VODCA()).select_variables((variable.VOD.name,)).dataset,
-        Datasets(GlobFluo_SIF()).select_variables((variable.SIF.name,)).dataset,
-    ]
-
-    # Datasets subject to temporal shifting.
-    datasets_to_shift = [
-        Datasets(ERA5_DryDayPeriod())
-        .select_variables((variable.DRY_DAY_PERIOD.name,))
-        .dataset
-    ]
+    selection_datasets = create_dataset_group(spec_selection_datasets)
+    temporal_interp_datasets = create_dataset_group(spec_temporal_interp_datasets)
+    shift_and_interp_datasets = create_dataset_group(spec_shift_and_interp_datasets)
+    datasets_to_shift = create_dataset_group(spec_datasets_to_shift)
 
     all_datasets = (
         selection_datasets
@@ -93,20 +98,37 @@ def _get_processed_data(
     )
 
     # Determine shared temporal extent of the data.
-    min_time, max_time = dataset_times(all_datasets)[:2]
-    shift_min_time = min_time - relativedelta(years=2)
+    _min_time, _max_time = dataset_times(all_datasets)[:2]
+
+    if min_time is None:
+        min_time = _min_time
+    if max_time is None:
+        max_time = _max_time
+
+    assert min_time >= _min_time
+    assert max_time <= _max_time
+
+    if shift_months:
+        _shift_min_time = datetime(min_time.year, min_time.month, 1) - relativedelta(
+            months=shift_months[-1]
+        )
+        shift_min_time = PartialDateTime(
+            year=_shift_min_time.year, month=_shift_min_time.month
+        )
+    else:
+        shift_min_time = min_time
 
     # Sanity check.
-    assert min_time == datetime(2010, 1, 1)
-    assert shift_min_time == datetime(2008, 1, 1)
-    assert max_time == datetime(2015, 4, 1)
+    assert min_time == check_min_time
+    assert shift_min_time == check_shift_min_time
+    assert max_time == check_max_time
 
     for dataset in datasets_to_shift + shift_and_interp_datasets:
         # Apply longer time limit to the datasets to be shifted.
         dataset.limit_months(shift_min_time, max_time)
 
         for cube in dataset:
-            assert cube.shape[0] == 88
+            assert cube.shape[0] == shift_n_time
 
     for dataset in selection_datasets + temporal_interp_datasets:
         # Apply time limit.
@@ -114,7 +136,7 @@ def _get_processed_data(
 
         if dataset.frequency == "monthly":
             for cube in dataset:
-                assert cube.shape[0] == 64
+                assert cube.shape[0] == normal_n_time
 
     for dataset in all_datasets:
         # Regrid each dataset to the common grid.
@@ -129,10 +151,7 @@ def _get_processed_data(
             ignore_mask = np.all(cube.data.mask, axis=0)
 
             # Also ignore those areas with low data availability.
-            ignore_mask |= np.sum(cube.data.mask, axis=0) > (
-                7 * 6  # Up to 6 months for each of the 7 complete years.
-                + 10  # Additional Jan, Feb, Mar, Apr, + 6 extra.
-            )
+            ignore_mask |= np.sum(cube.data.mask, axis=0) > mask_ignore_n
 
             total_masks.append(ignore_mask)
 
@@ -170,25 +189,23 @@ def _get_processed_data(
                     )
                 )
 
-    selection_variables = list(map(attrgetter("raw_filled"), all_inst_features))
-    if shift_months is not None:
-        for shift in shift_months:
-            for var_factory in shifted_variables:
-                selection_variables.append(var_factory[shift].raw_filled)
-
-    selection_variables = list(set(selection_variables).union(required_variables))
+    selection_variables = list(
+        set(map(lambda v: v.get_standard().raw_filled, exp_features)).union(
+            required_variables
+        )
+    )
 
     selection = Datasets(selection_datasets).select_variables(selection_variables)
     (
         endog_data,
         exog_data,
         master_mask,
-        filled_datasets,
+        _,  # We don't need the `filled_datasets`.
         masked_datasets,
         land_mask,
     ) = data_processing(
         selection,
-        which="climatology",
+        which=which,
         transformations={},
         deletions=[],
         use_lat_mask=False,
@@ -197,12 +214,17 @@ def _get_processed_data(
         masks=None,
     )
 
-    def _pandas_string_labels_to_variables(x):
+    def _pandas_string_labels_to_variables(
+        x,
+        target_var,
+        all_features=selected_features[Experiment.ALL],
+    ):
         """Transform series names or columns labels to variable.Variable instances."""
+
         all_variables = tuple(
             # Get the instantaneous variables corresponding to all variables.
-            list(map(methodcaller("get_standard"), selected_features[Experiment.ALL]))
-            + [variable.GFED4_BA]
+            list(map(methodcaller("get_standard"), all_features))
+            + [target_var]
         )
         all_variable_names = tuple(map(attrgetter("raw_filled"), all_variables))
         if isinstance(x, pd.Series):
@@ -214,27 +236,13 @@ def _get_processed_data(
                 f"Expected either a pandas.Series or pandas.DataFrame. Got '{x}'."
             )
 
-    _pandas_string_labels_to_variables(endog_data)
-    _pandas_string_labels_to_variables(exog_data)
+    _pandas_string_labels_to_variables(endog_data, target_var)
+    _pandas_string_labels_to_variables(exog_data, target_var)
 
-    assert exog_data.shape[1] == 50
+    assert exog_data.shape[1] == len(exp_features)
 
-    return (
-        endog_data,
-        exog_data,
-        master_mask,
-        filled_datasets,
-        masked_datasets,
-        land_mask,
-    )
-
-
-@cache
-@mark_dependency
-def _get_offset_exog_data(
-    exog_data,
-):
-    """Low-level function which calculates anomalies for large lags."""
+    # Calculate anomalies for large lags.
+    # NOTE: Modifies `exog_data` inplace.
     to_delete = []
 
     for var in exog_data:
@@ -252,52 +260,197 @@ def _get_offset_exog_data(
     for column in to_delete:
         del exog_data[column]
 
-    return exog_data
-
-
-@cache(dependencies=(_get_processed_data, _get_offset_exog_data))
-@mark_dependency
-def get_data(experiment=Experiment.ALL):
-    """Get data for a given experiment."""
-    (
-        endog_data,
-        unshifted_exog_data,
-        master_mask,
-        filled_datasets,
-        masked_datasets,
-        land_mask,
-    ) = _get_processed_data()
-
-    exog_data = _get_offset_exog_data(unshifted_exog_data)
-
-    # Since we applied offsets above, this needs to be reflected in the variable names.
-    exp_selected_features = tuple(
-        map(methodcaller("get_offset"), selected_features[experiment])
-    )
-    if set(exp_selected_features) != set(exog_data.columns):
-        assert len(exp_selected_features) == 15
-        # We need to subset exog_data, filled_datasets, and masked_datasets.
-        exog_data = exog_data[list(exp_selected_features)]
-        # The Datasets objects below are not ware of the 'variable' module and use
-        # normal string indexing instead.
-        filled_datasets = filled_datasets.select_variables(
-            tuple(map(attrgetter("raw_filled"), exp_selected_features))
-        )
-        masked_datasets = masked_datasets.select_variables(
-            tuple(map(attrgetter("raw_filled"), exp_selected_features))
-        )
-        assert (
-            exog_data.shape[1]
-            == len(filled_datasets.cubes)
-            == len(masked_datasets.cubes)
-            == 15
-        )
+    # Check again.
+    assert exog_data.shape[1] == len(exp_features)
 
     return (
         endog_data,
         exog_data,
         master_mask,
-        filled_datasets,
+        masked_datasets,
+        land_mask,
+    )
+
+
+@mark_dependency
+def get_data(
+    experiment=Experiment.ALL,
+    persistent_perc=variable.st_persistent_perc,
+    season_trend_k=variable.st_k,
+    all_features=selected_features,
+    _variable_names=tuple(
+        map(
+            attrgetter("name", "shift"),
+            selected_features[Experiment.ALL],
+        )
+    ),
+):
+    """Get data for a given experiment."""
+    if experiment == Experiment["15VEG_FAPAR_MON"]:
+        target_var = variable.MCD64CMQ_BA
+        exp_features = all_features[Experiment["15VEG_FAPAR_MON"]]
+        which = "monthly"
+
+        # Dataset selection.
+
+        selection_datasets = {
+            "AvitabileThurnerAGB": set(),
+            "ERA5_Temperature": set(),
+            "Ext_ESA_CCI_Landcover_PFT": set(),
+            "HYDE": set(),
+            "MCD64CMQ_C6": set(),
+        }
+
+        # Datasets subject to temporal interpolation (filling).
+        temporal_interp_datasets = {}
+
+        # Datasets subject to temporal interpolation and shifting.
+        shift_and_interp_datasets = {
+            "Ext_MOD15A2H_fPAR": {
+                variable.FAPAR.name,
+            }
+        }
+
+        # Datasets subject to temporal shifting.
+        datasets_to_shift = {
+            "ERA5_DryDayPeriod": {
+                variable.DRY_DAY_PERIOD.name,
+            }
+        }
+
+        # The FAPAR dataset begins 2000-02.
+        min_time = PartialDateTime(year=2000, month=11)
+
+        # The ESA CCI LC dataset stops in 2019.
+        max_time = PartialDateTime(year=2019, month=12)
+
+        # Sanity check including shifting.
+        check_min_time = PartialDateTime(year=2000, month=11)
+        check_shift_min_time = PartialDateTime(year=2000, month=2)
+        check_max_time = PartialDateTime(year=2019, month=12)
+
+        shift_n_time = 239
+        normal_n_time = 230
+
+        mask_ignore_n = (
+            19 * 6  # Up to 6 months for each of the 19 complete years.
+            + 10  # Additional Mar, Apr, Nov, Dec + 6 extra.
+        )
+    else:
+        target_var = variable.GFED4_BA
+        exp_features = all_features[Experiment.ALL]
+        which = "climatology"
+
+        # Dataset selection.
+        selection_datasets = {
+            "AvitabileThurnerAGB": set(),
+            "ERA5_Temperature": set(),
+            "Ext_ESA_CCI_Landcover_PFT": set(),
+            "GFEDv4": set(),
+            "HYDE": set(),
+            "WWLLN": set(),
+        }
+
+        # Datasets subject to temporal interpolation (filling).
+        temporal_interp_datasets = {
+            "Copernicus_SWI": {
+                variable.SWI.name,
+            },
+        }
+
+        # Datasets subject to temporal interpolation and shifting.
+        shift_and_interp_datasets = {
+            "MOD15A2H_LAI_fPAR": {
+                variable.LAI.name,
+            },
+            "Ext_MOD15A2H_fPAR": {
+                variable.FAPAR.name,
+            },
+            "VODCA": {
+                variable.VOD.name,
+            },
+            "GlobFluo_SIF": {
+                variable.SIF.name,
+            },
+        }
+
+        # Datasets subject to temporal shifting.
+        datasets_to_shift = {
+            "ERA5_DryDayPeriod": {
+                variable.DRY_DAY_PERIOD.name,
+            }
+        }
+
+        # Data-derived.
+        min_time = None
+        max_time = None
+
+        # Sanity check.
+        check_min_time = PartialDateTime(year=2010, month=1)
+        check_shift_min_time = PartialDateTime(year=2008, month=1)
+        check_max_time = PartialDateTime(year=2015, month=4)
+
+        shift_n_time = 88
+        normal_n_time = 64
+
+        mask_ignore_n = (
+            7 * 6  # Up to 6 months for each of the 7 complete years.
+            + 10  # Additional Jan, Feb, Mar, Apr, + 6 extra.
+        )
+
+    # Actually retrieve the specified data.
+    (endog_data, exog_data, master_mask, masked_datasets, land_mask,) = _basis_func(
+        check_max_time=check_max_time,
+        check_min_time=check_min_time,
+        check_shift_min_time=check_shift_min_time,
+        exp_features=exp_features,
+        mask_ignore_n=mask_ignore_n,
+        max_time=max_time,
+        min_time=min_time,
+        normal_n_time=normal_n_time,
+        persistent_perc=persistent_perc,
+        season_trend_k=season_trend_k,
+        shift_n_time=shift_n_time,
+        spec_datasets_to_shift=datasets_to_shift,
+        spec_selection_datasets=selection_datasets,
+        spec_shift_and_interp_datasets=shift_and_interp_datasets,
+        spec_temporal_interp_datasets=temporal_interp_datasets,
+        target_var=target_var,
+        which=which,
+    )
+
+    # Since we applied offsets above, this needs to be reflected in the variable names.
+    exp_selected_features = tuple(
+        map(methodcaller("get_offset"), all_features[experiment])
+    )
+    if set(exp_selected_features) != set(exog_data.columns):
+        assert len(exp_selected_features) == 15
+
+        # We need to subset exog_data and masked_datasets.
+
+        # Do this lazily to avoid realising the cached data.
+
+        def select_exog_data(df, selection=tuple(exp_selected_features)):
+            df = df[list(selection)]
+            assert df.shape[1] == 15
+            return df
+
+        def select_masked_datasets(ds, selection=tuple(exp_selected_features)):
+            # The Datasets objects below are not ware of the 'variable' module and use
+            # normal string indexing instead.
+            ds = ds.select_variables(tuple(map(attrgetter("raw_filled"), selection)))
+            assert len(ds.cubes) == 15
+            return ds
+
+        exog_data = process_proxy((exog_data,), (select_exog_data,))[0]
+        masked_datasets = process_proxy((masked_datasets,), (select_masked_datasets,))[
+            0
+        ]
+
+    return (
+        endog_data,
+        exog_data,
+        master_mask,
         masked_datasets,
         land_mask,
     )
@@ -314,7 +467,7 @@ def get_split_data(
     return X_train, X_test, y_train, y_test
 
 
-@cache(dependencies=(get_split_data, get_data))
+@cache(dependencies=(get_split_data, get_data, _basis_func))
 def get_experiment_split_data(experiment):
     endog_data, exog_data = get_data(experiment=experiment)[:2]
     return get_split_data(exog_data, endog_data)
