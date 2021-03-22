@@ -13,7 +13,7 @@ from wildfires.analysis import data_processing
 from wildfires.data import Dataset, Datasets, dataset_times
 
 from .. import variable
-from ..cache import cache, mark_dependency, process_proxy
+from ..cache import cache, custom_get_hash, mark_dependency, process_proxy
 from ..configuration import Experiment, selected_features, train_test_split_kwargs
 
 __all__ = ("get_data", "get_experiment_split_data", "get_split_data")
@@ -269,6 +269,7 @@ def _basis_func(
         master_mask,
         masked_datasets,
         land_mask,
+        set(exog_data.columns),
     )
 
 
@@ -399,7 +400,14 @@ def get_data(
         )
 
     # Actually retrieve the specified data.
-    (endog_data, exog_data, master_mask, masked_datasets, land_mask,) = _basis_func(
+    (
+        endog_data,
+        exog_data,
+        master_mask,
+        masked_datasets,
+        land_mask,
+        exog_data_columns,
+    ) = _basis_func(
         check_max_time=check_max_time,
         check_min_time=check_min_time,
         check_shift_min_time=check_shift_min_time,
@@ -423,7 +431,9 @@ def get_data(
     exp_selected_features = tuple(
         map(methodcaller("get_offset"), all_features[experiment])
     )
-    if set(exp_selected_features) != set(exog_data.columns):
+    if custom_get_hash(set(exp_selected_features)) != custom_get_hash(
+        exog_data_columns
+    ):
         assert len(exp_selected_features) == 15
 
         # We need to subset exog_data and masked_datasets.
