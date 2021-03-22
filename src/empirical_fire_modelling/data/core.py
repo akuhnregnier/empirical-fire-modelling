@@ -16,7 +16,12 @@ from .. import variable
 from ..cache import cache, custom_get_hash, mark_dependency, process_proxy
 from ..configuration import Experiment, selected_features, train_test_split_kwargs
 
-__all__ = ("get_data", "get_experiment_split_data", "get_split_data")
+__all__ = (
+    "get_data",
+    "get_experiment_split_data",
+    "get_map_data",
+    "get_split_data",
+)
 
 
 @cache
@@ -285,6 +290,7 @@ def get_data(
             selected_features[Experiment.ALL],
         )
     ),
+    cache_check=False,
 ):
     """Get data for a given experiment."""
     if experiment == Experiment["15VEG_FAPAR_MON"]:
@@ -400,14 +406,7 @@ def get_data(
         )
 
     # Actually retrieve the specified data.
-    (
-        endog_data,
-        exog_data,
-        master_mask,
-        masked_datasets,
-        land_mask,
-        exog_data_columns,
-    ) = _basis_func(
+    data_kwargs = dict(
         check_max_time=check_max_time,
         check_min_time=check_min_time,
         check_shift_min_time=check_shift_min_time,
@@ -426,6 +425,17 @@ def get_data(
         target_var=target_var,
         which=which,
     )
+    if cache_check:
+        return _basis_func.check_in_store(**data_kwargs)
+
+    (
+        endog_data,
+        exog_data,
+        master_mask,
+        masked_datasets,
+        land_mask,
+        exog_data_columns,
+    ) = _basis_func(**data_kwargs)
 
     # Since we applied offsets above, this needs to be reflected in the variable names.
     exp_selected_features = tuple(
@@ -481,3 +491,13 @@ def get_split_data(
 def get_experiment_split_data(experiment):
     endog_data, exog_data = get_data(experiment=experiment)[:2]
     return get_split_data(exog_data, endog_data)
+
+
+@mark_dependency
+def get_map_data(data_1d, master_mask):
+    """Go from 1D data to data on a map, defined by master_mask."""
+    map_data = np.ma.MaskedArray(
+        np.zeros_like(master_mask, dtype=np.float64), mask=np.ones_like(master_mask)
+    )
+    map_data[~master_mask] = data_1d
+    return map_data
