@@ -48,7 +48,7 @@ def hash_df(df):
 
 def get_variable_parent_name(var):
     """Get the name of the parent if it exists or return the variable name otherwise."""
-    if hasattr(var, "parent"):
+    if hasattr(var, "parent") and var.parent is not None:
         return var.parent.name
     else:
         return var.name
