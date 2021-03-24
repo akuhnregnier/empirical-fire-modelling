@@ -35,7 +35,7 @@ warnings.filterwarnings(
 
 
 def plot_ba(experiment, **kwargs):
-    exp_figure_saver = figure_saver(sub_directory=str(experiment))
+    exp_figure_saver = figure_saver(sub_directory=experiment.name)
 
     # Operate on cached data only.
     get_experiment_split_data.check_in_store(experiment)

@@ -40,7 +40,7 @@ warnings.filterwarnings(
 def plot_1d_ale(
     experiment, plot_monte_carlo=True, single=False, verbose=False, **kwargs
 ):
-    exp_figure_saver = figure_saver(sub_directory=str(experiment))
+    exp_figure_saver = figure_saver(sub_directory=experiment.name)
 
     # Operate on cached data only.
     get_experiment_split_data.check_in_store(experiment)
