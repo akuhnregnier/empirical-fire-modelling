@@ -45,6 +45,7 @@ def random_binary_dilation_split(
     structure,
     master_mask,
     test_frac=0.05,
+    train_frac=None,
     seed=0,
     verbose=False,
     dpi=400,
@@ -63,6 +64,8 @@ def random_binary_dilation_split(
         master_mask (numpy.ndarray): Mask controlling mapping from `exog_data`,
             `endog_data` to mapped data.
         test_frac (float): Fraction of samples to reserve for testing.
+        train_frac (float or None): Fraction of samples to use for training. If `None`
+            is given, all possible samples will be used.
         seed (int): Random number generator seed used to dictate where test samples
             are located.
         verbose (bool): Plot the training and test masks.
@@ -80,6 +83,8 @@ def random_binary_dilation_split(
         ValueError: If `master_mask` is not a rank 3 array.
         ValueError: If `master_mask` is not identical across each slice along its
             first (temporal) dimension.
+        ValueError: If `train_frac` cannot be satisfied, e.g. because too many samples
+            are being used for testing and exclusion zones around test samples.
 
     """
     if master_mask.ndim != 3:
@@ -90,11 +95,13 @@ def random_binary_dilation_split(
 
     rng = np.random.default_rng(seed)
     collapsed_master_mask = master_mask[0]
+    single_total_samples = np.sum(~collapsed_master_mask)
+    total_samples = single_total_samples * master_mask.shape[0]
 
     possible_indices = np.array(list(zip(*np.where(~collapsed_master_mask))))
 
     # Per time slice.
-    n_test_samples = round(np.sum(~collapsed_master_mask) * test_frac)
+    n_test_samples = round(single_total_samples * test_frac)
 
     # Select test data.
     test_indices = possible_indices[
@@ -109,8 +116,37 @@ def random_binary_dilation_split(
         ~hold_out_selection
     )
 
-    # The remaining data is then used for training.
-    train_selection = ~(hold_out_selection | ignored_data)
+    # The remaining data is then used for training, depending on train_frac.
+    possible_train_selection = (
+        ~(hold_out_selection | ignored_data) & ~collapsed_master_mask
+    )
+
+    if train_frac is None:
+        train_selection = possible_train_selection
+    else:
+        possible_train_indices = np.array(
+            list(zip(*np.where(possible_train_selection)))
+        )
+        n_train_samples = round(single_total_samples * train_frac)
+
+        if len(possible_train_indices) < n_train_samples:
+            raise ValueError(
+                f"Need at least {n_train_samples} samples to satisfy train_frac: "
+                f"{train_frac}, but only have {len(possible_train_indices)} "
+                f"({len(possible_train_indices) / single_total_samples:0.4f})."
+            )
+
+        # Select train data.
+        train_indices = possible_train_indices[
+            rng.choice(
+                np.arange(len(possible_train_indices)),
+                size=n_train_samples,
+                replace=False,
+            )
+        ]
+
+        train_selection = np.zeros_like(collapsed_master_mask)
+        train_selection[(train_indices[:, 0], train_indices[:, 1])] = True
 
     # Apply the master_mask to the training and test data to arrive at the final 3D mask.
     train_selection = train_selection[None] & (~master_mask)
@@ -146,7 +182,6 @@ def random_binary_dilation_split(
     n_ignored = np.sum(ignored_data[None] & (~master_mask))
     n_train = np.sum(train_selection)
     n_hold_out = np.sum(hold_out_selection)
-    total_samples = n_ignored + n_train + n_hold_out
 
     desc_str = (
         f"Total samples: {total_samples:0.1e}, "
