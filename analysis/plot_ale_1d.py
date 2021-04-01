@@ -3,12 +3,10 @@
 import logging
 import sys
 import warnings
-from itertools import islice
 from pathlib import Path
 
 import matplotlib as mpl
 from loguru import logger as loguru_logger
-from wildfires.qstat import get_ncpus
 
 from empirical_fire_modelling.analysis.ale import save_ale_1d
 from empirical_fire_modelling.configuration import Experiment
@@ -50,29 +48,28 @@ def plot_1d_ale(
     get_model(X_train, y_train, cache_check=True)
     model = get_model(X_train, y_train)
 
-    def param_iter():
-        for column in X_train.columns:
-            for monte_carlo in [False, True] if plot_monte_carlo else [False]:
-                yield column, monte_carlo
+    params = []
+    for column in X_train.columns:
+        params.append(column)
 
     if single:
         total = 1
     else:
-        total = X_train.shape[1] * 2
+        total = len(params)
 
-    for column, monte_carlo in tqdm(
-        islice(param_iter(), None, total),
+    for column in tqdm(
+        params[:total],
         desc=f"1D ALE plotting ({experiment})",
-        total=total,
         disable=not verbose,
     ):
         save_ale_1d(
             model,
             X_train,
             column,
-            n_jobs=get_ncpus(),
-            monte_carlo=monte_carlo,
             figure_saver=exp_figure_saver,
+            verbose=verbose,
+            monte_carlo_rep=1000,
+            monte_carlo_ratio=0.02,
         )
 
 

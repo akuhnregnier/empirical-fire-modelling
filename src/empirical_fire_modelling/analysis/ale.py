@@ -3,49 +3,57 @@
 
 from functools import partial
 
+import alepython.ale
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
-from alepython.ale import _sci_format, ale_plot, first_order_ale_quant
+from alepython import ale_plot, multi_ale_plot_1d
 from joblib import parallel_backend
 from matplotlib.colors import SymLogNorm
-from wildfires.utils import NoCachedDataError, SimpleCache, simple_sci_format, tqdm
+from wildfires.utils import simple_sci_format
+
+from ..cache import cache
+
+# Transparently cache the ALE computations.
+alepython.ale.first_order_ale_quant = cache(alepython.ale.first_order_ale_quant)
+alepython.ale.second_order_ale_quant = cache(alepython.ale.second_order_ale_quant)
 
 
 def save_ale_1d(
     model,
     X_train,
     column,
-    n_jobs=8,
-    monte_carlo_rep=1000,
-    monte_carlo_ratio=100,
-    verbose=False,
     monte_carlo=True,
+    monte_carlo_rep=100,
+    monte_carlo_ratio=1000,
+    monte_carlo_hull=True,
+    verbose=True,
     center=False,
     figure_saver=None,
+    sub_dir="ale",
 ):
-    model.n_jobs = n_jobs
-    with parallel_backend("threading", n_jobs=n_jobs):
-        fig, ax = plt.subplots(
-            figsize=(7.5, 4.5)
-        )  # Make sure plot is plotted onto a new figure.
-        out = ale_plot(
-            model,
-            X_train,
-            column,
-            bins=20,
-            monte_carlo=monte_carlo,
-            monte_carlo_rep=monte_carlo_rep,
-            monte_carlo_ratio=monte_carlo_ratio,
-            plot_quantiles=True,
-            quantile_axis=True,
-            rugplot_lim=0,
-            scilim=0.6,
-            return_data=True,
-            return_mc_data=True,
-            verbose=verbose,
-            center=center,
-        )
+    fig, ax = plt.subplots(
+        figsize=(7.5, 4.5)
+    )  # Make sure plot is plotted onto a new figure.
+    out = ale_plot(
+        model,
+        X_train,
+        column,
+        bins=20,
+        monte_carlo=monte_carlo,
+        monte_carlo_rep=monte_carlo_rep,
+        monte_carlo_ratio=monte_carlo_ratio,
+        monte_carlo_hull=monte_carlo_hull,
+        plot_quantiles=True,
+        quantile_axis=True,
+        rugplot_lim=0,
+        scilim=0.6,
+        return_data=True,
+        return_mc_data=True,
+        verbose=verbose,
+        center=center,
+        rng=np.random.default_rng(0),
+    )
     if monte_carlo:
         fig, axes, data, mc_data = out
     else:
@@ -54,7 +62,6 @@ def save_ale_1d(
     for ax_key in ("ale", "quantiles_x"):
         axes[ax_key].xaxis.set_tick_params(rotation=45)
 
-    sub_dir = "ale" if monte_carlo else "ale_non_mc"
     if figure_saver is not None:
         figure_saver.save_figure(fig, str(column), sub_directory=sub_dir)
 
@@ -248,19 +255,16 @@ def save_ale_2d(
 def multi_ale_1d(
     model,
     X_train,
-    columns,
-    fig_name=None,
+    features,
+    monte_carlo=True,
+    monte_carlo_rep=100,
+    monte_carlo_ratio=1000,
+    verbose=True,
+    center=False,
+    figure_saver=None,
+    sub_dir="multi_ale",
     fig=None,
     ax=None,
-    xlabel=None,
-    ylabel=None,
-    title=None,
-    n_jobs=1,
-    verbose=False,
-    figure_saver=None,
-    CACHE_DIR=None,
-    bins=20,
-    x_rotation=20,
 ):
     if fig is None and ax is None:
         fig, ax = plt.subplots(
@@ -271,60 +275,34 @@ def multi_ale_1d(
     if ax is None:
         ax = plt.axes()
 
-    quantile_list = []
-    ale_list = []
-    for feature in tqdm(columns, desc="Calculating feature ALEs", disable=not verbose):
-        cache = SimpleCache(
-            f"{feature}_ale_{bins}",
-            cache_dir=CACHE_DIR / "ale",
-            verbose=10 if verbose else 0,
-        )
-        try:
-            quantiles, ale = cache.load()
-        except NoCachedDataError:
-            model.n_jobs = n_jobs
-
-            with parallel_backend("threading", n_jobs=n_jobs):
-                quantiles, ale = first_order_ale_quant(
-                    model.predict, X_train, feature, bins=bins
-                )
-                cache.save((quantiles, ale))
-
-        quantile_list.append(quantiles)
-        ale_list.append(ale)
-
-    # Construct quantiles from the individual quantiles, minimising the amount of interpolation.
-    combined_quantiles = np.vstack([quantiles[None] for quantiles in quantile_list])
-
-    final_quantiles = np.mean(combined_quantiles, axis=0)
-
-    mod_quantiles = np.arange(len(quantiles))
-
-    markers = ["o", "v", "^", "<", ">", "x", "+"]
-    for feature, quantiles, ale, marker in zip(
-        columns, quantile_list, ale_list, markers
-    ):
-        # Interpolate each of the quantiles relative to the accumulated final quantiles.
-        ax.plot(
-            np.interp(quantiles, final_quantiles, mod_quantiles),
-            ale,
-            marker=marker,
-            label=feature,
-        )
-
-    ax.legend(loc="best", ncol=2)
-
-    ax.set_xticks(mod_quantiles[::2])
-    ax.set_xticklabels(_sci_format(final_quantiles[::2], scilim=0.6))
-    ax.xaxis.set_tick_params(rotation=x_rotation)
-
-    ax.yaxis.set_major_formatter(
-        ticker.FuncFormatter(lambda x, pos: simple_sci_format(x))
+    (
+        fig,
+        ax,
+        final_quantiles,
+        quantile_list,
+        ale_list,
+        mc_data_list,
+    ) = multi_ale_plot_1d(
+        model=model,
+        train_set=X_train,
+        features=features,
+        monte_carlo=monte_carlo,
+        monte_carlo_rep=monte_carlo_rep,
+        monte_carlo_ratio=monte_carlo_ratio,
+        return_data=True,
+        return_mc_data=True,
+        verbose=verbose,
+        center=center,
+        fig=fig,
+        ax=ax,
+        rng=np.random.default_rng(0),
+        format_xlabels=False,
+        xlabel_skip=1,
     )
 
-    fig.suptitle(title)
-    ax.set_xlabel(xlabel, va="center_baseline")
-    ax.set_ylabel(ylabel)
-
     if figure_saver is not None:
-        figure_saver.save_figure(fig, fig_name, sub_directory="multi_ale")
+        figure_saver.save_figure(
+            fig, "__".join(map(str, features)), sub_directory=sub_dir
+        )
+
+    return final_quantiles
