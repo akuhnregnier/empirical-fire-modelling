@@ -15,20 +15,24 @@ __all__ = (
 )
 
 
-@cache
-def _get_model(X_train, y_train, param_dict=param_dict):
+@cache(ignore=["parallel_backend_call"])
+def _get_model(X_train, y_train, param_dict=param_dict, parallel_backend_call=None):
     """Perform model fitting."""
     model = DaskRandomForestRegressor(**param_dict)
-    with parallel_backend("dask"):
-        model.fit(X_train, y_train)
+    if parallel_backend_call is None:
+        with parallel_backend("dask"):
+            model.fit(X_train, y_train)
+    else:
+        with parallel_backend_call():
+            model.fit(X_train, y_train)
     return model
 
 
-def get_model(X_train, y_train, cache_check=False):
+def get_model(X_train, y_train, cache_check=False, **kwargs):
     """Perform model fitting if needed and set the `n_jobs` parameter."""
     if cache_check:
         return _get_model.check_in_store(X_train, y_train)
-    model = _get_model(X_train, y_train)
+    model = _get_model(X_train, y_train, **kwargs)
     model.n_jobs = get_ncpus()
     return model
 

@@ -187,7 +187,14 @@ def run_cx1(func, args, kwargs, cx1_kwargs, verbose):
     print(f"Submitted job '{job_str}' with job name '{job_name}'.")
 
 
-def run(func, *args, cx1_kwargs=None, get_parsers=get_parsers, **kwargs):
+def run(
+    func,
+    *args,
+    cx1_kwargs=None,
+    get_parsers=get_parsers,
+    return_local_args=False,
+    **kwargs,
+):
     """Run a function depending on given (including command line) arguments.
 
     Command line arguments will dictate if this function is run locally or as an
@@ -218,6 +225,9 @@ def run(func, *args, cx1_kwargs=None, get_parsers=get_parsers, **kwargs):
             least) a 'parser' key, which references the parser object used to parse
             command line arguments. This return value should support the following
             call (i.e. `get_parsers()['parser'].parse_args()`).
+        return_local_args (bool):
+            If True, return the arguments and kwargs along with the results (only
+            applies for 'local').
         **kwargs: Function keyword arguments. These will be given identically to each
             function call, as opposed to `args`.
 
@@ -318,7 +328,7 @@ def run(func, *args, cx1_kwargs=None, get_parsers=get_parsers, **kwargs):
         args = tuple(zip(*uncached_args))
 
     if cmd_args.dest == "local":
-        return run_local(
+        out = run_local(
             func=func,
             args=args,
             kwargs=kwargs,
@@ -326,6 +336,9 @@ def run(func, *args, cx1_kwargs=None, get_parsers=get_parsers, **kwargs):
             n_cores=cmd_args.n_cores,
             verbose=verbose,
         )
+        if return_local_args:
+            return args, kwargs, out
+        return out
     elif cmd_args.dest == "cx1":
         run_cx1(
             func=func, args=args, kwargs=kwargs, cx1_kwargs=cx1_kwargs, verbose=verbose

@@ -3,6 +3,7 @@
 import logging
 import sys
 import warnings
+from operator import itemgetter
 from pathlib import Path
 from pprint import pprint
 
@@ -72,12 +73,16 @@ if __name__ == "__main__":
     cx1_kwargs = dict(walltime="06:00:00", ncpus=32, mem="60GB")
 
     experiments = list(Experiment)
-    pfi_results = run(pfi_calc, experiments, cx1_kwargs=cx1_kwargs)
-    if pfi_results is None:
+    args_pfi_results = run(
+        pfi_calc, experiments, cx1_kwargs=cx1_kwargs, return_local_args=True
+    )
+    if args_pfi_results is None:
         sys.exit(0)
 
+    args, kwargs, pfi_results = args_pfi_results
+
     pfi_importances = {}
-    for exp, pfi_result in zip(experiments, pfi_results):
+    for exp, pfi_result in zip(map(itemgetter(0), args), pfi_results):
         # Join the train and test data.
         pfi_importances[exp] = (
             pfi_result["train"]
