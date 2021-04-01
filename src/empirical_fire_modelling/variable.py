@@ -21,6 +21,9 @@ class VariableFactory:
             rank=self.rank, name=self.name, shift=months, units=self.units, parent=self
         )
 
+    def __str__(self):
+        return self.name
+
 
 @dataclass(frozen=True, order=True, init=False)
 class Variable(ABC):
