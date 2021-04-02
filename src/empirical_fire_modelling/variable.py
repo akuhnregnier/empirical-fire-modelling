@@ -113,6 +113,15 @@ class OffsetVariable(Variable):
         return f"{self.name} Δ{self.shift}M"
 
 
+def sort_variables(variables):
+    """Sort variables based on their rank and shift.
+
+    Note that this relies on all variables having a unique rank.
+
+    """
+    return tuple(sorted(variables, key=lambda v: (v.rank, v.shift)))
+
+
 def get_matching(variables, strict=True, single=True, **criteria):
     """Given a set of criteria, find the matching variables(s).
 

@@ -111,3 +111,17 @@ def test_order_rank_shift():
     assert variable.StandardVariable(
         rank=0, shift=0, **common_kwargs
     ) < variable.StandardVariable(rank=1, shift=1, **common_kwargs)
+
+
+def test_sort_variables():
+    common_kwargs = dict(name="a", units="1", parent=None)
+    variables = (
+        variable.StandardVariable(rank=0, shift=3, **common_kwargs),
+        variable.OffsetVariable(rank=0, shift=12, **common_kwargs),
+        variable.StandardVariable(rank=0, shift=0, **common_kwargs),
+    )
+    assert variable.sort_variables(variables) == (
+        variable.StandardVariable(rank=0, shift=0, **common_kwargs),
+        variable.StandardVariable(rank=0, shift=3, **common_kwargs),
+        variable.OffsetVariable(rank=0, shift=12, **common_kwargs),
+    )
