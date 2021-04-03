@@ -66,10 +66,11 @@ def plot_1d_ale(
             model,
             X_train,
             column,
+            train_response=y_train,
             figure_saver=exp_figure_saver,
             verbose=verbose,
-            monte_carlo_rep=1000,
-            monte_carlo_ratio=0.02,
+            monte_carlo_rep=200,
+            monte_carlo_ratio=0.1,
         )
 
 

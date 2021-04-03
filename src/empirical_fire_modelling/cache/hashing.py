@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+from collections.abc import Sequence, Set
+
 import joblib
 import numpy as np
 import pandas as pd
@@ -76,5 +78,21 @@ def get_hash(arg):
             (arg.name, arg.shift, get_variable_parent_name(arg))
         )
     else:
-        arg_hash = joblib.hashing.hash(arg)
+        try:
+            # Hash of a sequence of Variable.
+
+            arg_hash = None
+
+            if isinstance(arg, Sequence):
+                if all(isinstance(v, variable.Variable) for v in arg):
+                    arg_hash = joblib.hashing.hash(tuple(get_hash(v) for v in arg))
+            elif isinstance(arg, Set):
+                if all(isinstance(v, variable.Variable) for v in arg):
+                    arg_hash = joblib.hashing.hash(set(get_hash(v) for v in arg))
+
+            if arg_hash is None:
+                raise ValueError()
+
+        except:
+            arg_hash = joblib.hashing.hash(arg)
     return arg_hash

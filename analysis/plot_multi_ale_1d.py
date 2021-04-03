@@ -19,6 +19,7 @@ from empirical_fire_modelling.data import get_experiment_split_data
 from empirical_fire_modelling.logging_config import enable_logging
 from empirical_fire_modelling.model import get_model
 from empirical_fire_modelling.plotting import figure_saver
+from empirical_fire_modelling.utils import tqdm
 
 mpl.rc_file(Path(__file__).resolve().parent / "matplotlibrc")
 
@@ -69,16 +70,19 @@ def plot_multi_ale(experiment, verbose=False, **kwargs):
         )
     features = (matched[0].parent, variable.DRY_DAY_PERIOD)
 
-    for feature_factory, ax, title in zip(features, axes, ("(a)", "(b)")):
+    for feature_factory, ax, title in zip(
+        tqdm(features, desc="Processing features"), axes, ("(a)", "(b)")
+    ):
         final_quantiles = multi_ale_1d(
             model=model,
             X_train=X_train,
             features=[feature_factory[lag] for lag in variable.lags[:5]],
+            train_response=y_train,
             fig=fig,
             ax=ax,
             verbose=verbose,
             monte_carlo_rep=100,
-            monte_carlo_ratio=0.01,
+            monte_carlo_ratio=0.1,
         )
         ax.set_title(title)
 

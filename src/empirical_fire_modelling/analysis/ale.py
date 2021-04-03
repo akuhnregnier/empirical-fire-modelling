@@ -16,13 +16,17 @@ from ..cache import cache
 
 # Transparently cache the ALE computations.
 alepython.ale.first_order_ale_quant = cache(alepython.ale.first_order_ale_quant)
-alepython.ale.second_order_ale_quant = cache(alepython.ale.second_order_ale_quant)
+alepython.ale.second_order_ale_quant = cache(
+    alepython.ale.second_order_ale_quant, ignore=["n_jobs"]
+)
+alepython.ale._mc_replicas = cache(alepython.ale._mc_replicas, ignore=["verbose"])
 
 
 def save_ale_1d(
     model,
     X_train,
     column,
+    train_response=None,
     monte_carlo=True,
     monte_carlo_rep=100,
     monte_carlo_ratio=1000,
@@ -40,6 +44,7 @@ def save_ale_1d(
         X_train,
         column,
         bins=20,
+        train_response=train_response,
         monte_carlo=monte_carlo,
         monte_carlo_rep=monte_carlo_rep,
         monte_carlo_ratio=monte_carlo_ratio,
@@ -256,6 +261,7 @@ def multi_ale_1d(
     model,
     X_train,
     features,
+    train_response=None,
     monte_carlo=True,
     monte_carlo_rep=100,
     monte_carlo_ratio=1000,
@@ -265,6 +271,7 @@ def multi_ale_1d(
     sub_dir="multi_ale",
     fig=None,
     ax=None,
+    rngs=None,
 ):
     if fig is None and ax is None:
         fig, ax = plt.subplots(
@@ -274,6 +281,9 @@ def multi_ale_1d(
         fig = ax.get_figure()
     if ax is None:
         ax = plt.axes()
+
+    if rngs is None:
+        rngs = [np.random.default_rng(i) for i in range(len(features))]
 
     (
         fig,
@@ -286,6 +296,7 @@ def multi_ale_1d(
         model=model,
         train_set=X_train,
         features=features,
+        train_response=train_response,
         monte_carlo=monte_carlo,
         monte_carlo_rep=monte_carlo_rep,
         monte_carlo_ratio=monte_carlo_ratio,
@@ -295,9 +306,9 @@ def multi_ale_1d(
         center=center,
         fig=fig,
         ax=ax,
-        rng=np.random.default_rng(0),
         format_xlabels=False,
         xlabel_skip=1,
+        rngs=rngs,
     )
 
     if figure_saver is not None:

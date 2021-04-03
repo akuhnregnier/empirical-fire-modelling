@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 
+import joblib
 import numpy as np
 
+from empirical_fire_modelling import variable
 from empirical_fire_modelling.cache.hashing import get_hash
 
 from .utils import *  # noqa
@@ -56,3 +58,28 @@ def test_datasets_get_hash(dummy_datasets):
     dummy_datasets.cube.coord("time").long_name = "testing"
     coord_mod_hash = get_hash(dummy_datasets)
     assert coord_mod_hash != mask_mod_hash
+
+
+def test_variable_collection_get_hash():
+    var1 = variable.DRY_DAY_PERIOD[0]
+    var2 = variable.DRY_DAY_PERIOD[9]
+
+    assert get_hash({var1, var2}) == (
+        joblib.hashing.hash(
+            {
+                get_hash(var1),
+                get_hash(var2),
+            }
+        )
+    )
+
+    assert get_hash((var1, var2)) == (
+        joblib.hashing.hash(
+            (
+                get_hash(var1),
+                get_hash(var2),
+            )
+        )
+    )
+
+    assert get_hash((var1, var2)) == get_hash([var1, var2])
