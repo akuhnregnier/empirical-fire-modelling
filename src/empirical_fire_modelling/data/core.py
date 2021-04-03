@@ -274,7 +274,7 @@ def _basis_func(
         master_mask,
         masked_datasets,
         land_mask,
-        set(map(custom_get_hash, exog_data.columns)),
+        set(exog_data.columns),
     )
 
 
@@ -442,9 +442,9 @@ def get_data(
         map(methodcaller("get_offset"), all_features[experiment])
     )
 
-    if custom_get_hash(
-        set(map(custom_get_hash, exp_selected_features))
-    ) != custom_get_hash(exog_data_columns):
+    if custom_get_hash(set(exp_selected_features)) != custom_get_hash(
+        exog_data_columns
+    ):
         assert len(exp_selected_features) == 15
 
         # We need to subset exog_data and masked_datasets.
