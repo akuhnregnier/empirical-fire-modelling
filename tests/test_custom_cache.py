@@ -1,11 +1,15 @@
 # -*- coding: utf-8 -*-
-
 import numpy as np
 import pandas as pd
 import pytest
+from sklearn.ensemble import RandomForestRegressor
 
 from empirical_fire_modelling.cache import custom_get_hash
-from empirical_fire_modelling.cache.custom_backend import HashProxy
+from empirical_fire_modelling.cache.custom_backend import (
+    Factory,
+    HashProxy,
+    cache_hash_value,
+)
 from empirical_fire_modelling.exceptions import NotCachedError
 
 from .utils import *  # noqa
@@ -122,3 +126,36 @@ def test_chained_factory_not_called(test_cache, input_arg, value1, value2):
     for out, expected in ((lazy_out, value2), (out1, value1)):
         assert np.all(out == expected)
         assert out.__factory__.was_called
+
+
+def test_cache_hash_value():
+    rf = RandomForestRegressor(n_jobs=None)
+    orig_hash = custom_get_hash(rf)
+
+    rf_factory = Factory(lambda: rf)
+
+    hash_rf = cache_hash_value(
+        HashProxy(rf_factory, hash_value=custom_get_hash(rf)), func=None
+    )
+    mod_hash = custom_get_hash(hash_rf)
+
+    def assign_n_jobs(rf):
+        rf.n_jobs = 10
+        return rf
+
+    hash2_rf = cache_hash_value(hash_rf, func=assign_n_jobs)
+    mod2_hash = custom_get_hash(hash2_rf)
+
+    assert orig_hash == mod_hash == mod2_hash
+
+    assert not rf_factory._was_called
+    assert not hash2_rf.__factory__._was_called
+
+    assert hash2_rf.n_jobs == 10
+
+    assert hash2_rf.__factory__._was_called
+    assert rf_factory._was_called
+
+    # Note that these all refer to the same object.
+    assert rf.n_jobs == 10
+    assert hash_rf.n_jobs == 10

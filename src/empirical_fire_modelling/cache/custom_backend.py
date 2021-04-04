@@ -8,6 +8,7 @@ import os
 import re
 import shutil
 import traceback
+from functools import partial
 
 import cloudpickle
 from joblib import register_store_backend
@@ -79,6 +80,21 @@ class HashProxy(Proxy):
             self._hash_value = None  # Ensure this will never be accessed.
             return get_hash(self.__wrapped__)
         return self._hash_value
+
+
+def cache_hash_value(obj, func=None):
+    """Cache the hash value of a given object.
+
+    An optional function can be supplied (with signature func(obj) -> obj) which
+    should not change the hash value of `obj`.
+
+    """
+    if func is None:
+        func = lambda: obj
+    else:
+        func = partial(func, obj)
+
+    return HashProxy(Factory(func), hash_value=custom_get_hash(obj))
 
 
 def register_backend():

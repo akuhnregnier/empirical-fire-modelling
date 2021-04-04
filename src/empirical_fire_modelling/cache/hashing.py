@@ -58,6 +58,15 @@ def get_variable_parent_name(var):
 
 def get_hash(arg):
     """Compute a hash with special support for e.g. MaskedArray."""
+    if hasattr(arg, "n_jobs"):
+        # Temporarily set `n_jobs=None` in order to obtain uniform hash values
+        # throughout.
+        mod_n_jobs = True
+        orig_n_jobs = arg.n_jobs
+        arg.n_jobs = None
+    else:
+        mod_n_jobs = False
+
     if isinstance(arg, np.ma.core.MaskedArray):
         arg_hash = hash_ma(arg)
     elif isinstance(arg, Datasets):
@@ -95,4 +104,9 @@ def get_hash(arg):
 
         except:
             arg_hash = joblib.hashing.hash(arg)
+
+    if mod_n_jobs:
+        # Restore the original value.
+        arg.n_jobs = orig_n_jobs
+
     return arg_hash

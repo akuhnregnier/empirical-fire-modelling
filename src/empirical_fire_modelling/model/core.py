@@ -6,12 +6,14 @@ from sklearn.metrics import mean_squared_error, r2_score
 from wildfires.dask_cx1 import DaskRandomForestRegressor
 from wildfires.qstat import get_ncpus
 
-from ..cache import cache
+from ..cache import cache, cache_hash_value
 from ..configuration import param_dict
 
 __all__ = (
+    "assign_n_jobs",
     "get_model",
     "get_model_scores",
+    "model_predict",
 )
 
 
@@ -28,13 +30,22 @@ def _get_model(X_train, y_train, param_dict=param_dict, parallel_backend_call=No
     return model
 
 
+def assign_n_jobs(model):
+    """Assign `n_jobs` to the number of currently available CPUs."""
+    model.n_jobs = get_ncpus()
+    return model
+
+
 def get_model(X_train, y_train, cache_check=False, **kwargs):
     """Perform model fitting if needed and set the `n_jobs` parameter."""
     if cache_check:
         return _get_model.check_in_store(X_train, y_train)
-    model = _get_model(X_train, y_train, **kwargs)
-    model.n_jobs = get_ncpus()
-    return model
+    return cache_hash_value(_get_model(X_train, y_train, **kwargs), func=assign_n_jobs)
+
+
+@cache
+def model_predict(model, X):
+    return model.predict(X)
 
 
 @cache
