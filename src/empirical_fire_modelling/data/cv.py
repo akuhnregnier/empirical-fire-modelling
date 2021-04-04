@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import logging
+import math
 from operator import itemgetter
 
 import matplotlib.pyplot as plt
@@ -7,13 +9,16 @@ import pandas as pd
 from scipy import ndimage
 from wildfires.analysis import cube_plotting
 
-from ..cache import cache
+from ..cache import cache, mark_dependency
 from .core import get_map_data
 
 __all__ = (
+    "buffered_leave_one_out",
     "generate_structure",
     "random_binary_dilation_split",
 )
+
+logger = logging.getLogger(__name__)
 
 
 def generate_structure(N=7, size=1, verbose=False):
@@ -40,6 +45,7 @@ def generate_structure(N=7, size=1, verbose=False):
     return ((N, size, np.sum(structure)), structure)
 
 
+@mark_dependency
 def apply_structure(array, structure):
     """Apply a structure to an array akin to binary dilation.
 
@@ -274,3 +280,218 @@ def random_binary_dilation_split(
         train_y,
         hold_out_y,
     )
+
+
+@cache(dependencies=(get_map_data, apply_structure), ignore=("verbose", "dpi"))
+def buffered_leave_one_out(
+    exog_data,
+    endog_data,
+    master_mask,
+    radius,
+    max_rad,
+    seed=0,
+    max_tries=10,
+    verbose=False,
+    dpi=400,
+):
+    """Split data with a single test sample surrounded by ignored data.
+
+    Data is excluded using a given number of radii up to a given maximum radius (in
+    units of pixels, i.e. grid cells).
+
+    Args:
+        exog_data, endog_data (pd.DataFrame, pd.Series): Predictor and target
+            variables.
+        master_mask (numpy.ndarray): Mask controlling mapping from `exog_data`,
+            `endog_data` to mapped data.
+        radius (float): Radius (number of pixels) to exclude.
+        max_rad (float): Maximum radius to be attempted.
+        seed (int): Random number generator seed used to dictate where test samples
+            are located.
+        max_tries (int): Number of allowed attempts to find a test sample that is
+            within the train observations, given the maximum excluded radius `max_rad`.
+        verbose (bool): Plot the training and test masks.
+        dpi (int): Figure dpi. Only used if `verbose` is True.
+
+    Returns:
+        n_ignored (int): Number of ignored samples.
+        n_train (int): Number of train samples.
+        n_test (int): Number of test samples.
+        total_samples (int): Total number of samples.
+        train_X: Training predictor data.
+        test_X: Test predictor data.
+        train_y: Training target data.
+        test_y: Test training data.
+
+    Raises:
+        ValueError: If `master_mask` is not a rank 3 array.
+        ValueError: If `master_mask` is not identical across each slice along its
+            first (temporal) dimension.
+        ValueError: If `radius` is larger than `max_rad`.
+        RuntimeError: If no suitable test site can be found within `max_tries`.
+
+    """
+    if master_mask.ndim != 3:
+        raise ValueError(f"Expected a rank 3 array, got: {master_mask.ndim}.")
+
+    if not np.all(np.all(master_mask[:1] == master_mask, axis=0)):
+        raise ValueError("'master_mask' was not identical across each temporal slice.")
+
+    if radius > (max_rad + 1e-7):
+        raise ValueError("'radius' was larger than 'max_rad'")
+
+    rng = np.random.default_rng(seed)
+
+    collapsed_master_mask = master_mask[0]
+    single_total_samples = np.sum(~collapsed_master_mask)
+    total_samples = single_total_samples * master_mask.shape[0]
+
+    possible_indices = np.array(list(zip(*np.where(~collapsed_master_mask))))
+
+    def get_structure(radius):
+        # Generate a rank 2 structure.
+        N = math.ceil(radius * 2)
+        if N % 2 == 0:
+            # Ensure there is an odd number of elements. This results in a symmetric
+            # structure.
+            N += 1
+
+        if N > 1:
+            # Calculate the differences to the central index.
+            diffs = (np.arange(N) - N // 2) ** 2
+            structure = np.sqrt(diffs[np.newaxis] + diffs[:, np.newaxis]) <= (
+                radius + 1e-7
+            )
+        else:
+            structure = np.array([[True]])
+
+        if verbose:
+            plt.figure()
+            plt.imshow(structure, cmap="Greys", vmin=0, vmax=1)
+            plt.axis("off")
+            plt.title(f"N={N}, Total={np.sum(structure)}")
+
+        return structure
+
+    structure = get_structure(radius)
+    max_rad_structure = get_structure(max_rad)
+
+    n_train_samples = single_total_samples - np.sum(max_rad_structure)
+
+    tries = 0
+
+    while tries < max_tries:
+        # Select a single test sample.
+        test_indices = possible_indices[
+            rng.integers(low=0, high=len(possible_indices), size=(1,))
+        ]
+        hold_out_selection = np.zeros_like(collapsed_master_mask)
+        hold_out_selection[(test_indices[:, 0], test_indices[:, 1])] = True
+
+        # Select data around the test sample to ignore.
+        ignored_data = apply_structure(hold_out_selection, structure) & (
+            ~hold_out_selection
+        )
+        max_rad_ignored_data = apply_structure(
+            hold_out_selection, max_rad_structure
+        ) & (~hold_out_selection)
+
+        # The remaining data is then used for training, depending on train_frac.
+        possible_train_selection = (
+            ~(hold_out_selection | ignored_data) & ~collapsed_master_mask
+        )
+        max_rad_possible_train_selection = (
+            ~(hold_out_selection | max_rad_ignored_data) & ~collapsed_master_mask
+        )
+
+        possible_train_indices = np.array(
+            list(zip(*np.where(possible_train_selection)))
+        )
+
+        if len(possible_train_indices) < n_train_samples:
+            raise ValueError(
+                f"Need at least {n_train_samples} samples, but only have "
+                f"{len(possible_train_indices)}."
+            )
+
+        # Select train data.
+        train_indices = possible_train_indices[
+            rng.choice(
+                np.arange(len(possible_train_indices)),
+                size=n_train_samples,
+                replace=False,
+            )
+        ]
+
+        train_selection = np.zeros_like(collapsed_master_mask)
+        train_selection[(train_indices[:, 0], train_indices[:, 1])] = True
+
+        max_rad_train_selection = train_selection & max_rad_possible_train_selection
+
+        # Apply the master_mask to the training and test data to arrive at the final 3D mask.
+        train_selection = train_selection[None] & (~master_mask)
+        hold_out_selection = hold_out_selection[None] & (~master_mask)
+
+        max_rad_train_selection = max_rad_train_selection[None] & (~master_mask)
+
+        if verbose:
+            # Plot a map of the selections.
+            mask_vis = np.zeros_like(master_mask, dtype=np.int32)
+            mask_vis[hold_out_selection] = 1
+            mask_vis[train_selection] = 2
+            cube_plotting(
+                np.mean(mask_vis, axis=0),
+                title=str(seed),
+                fig=plt.figure(dpi=dpi),
+            )
+
+        # Transform X, y to 3D arrays before selecting using the above masks.
+        mm_endog = get_map_data(endog_data.values, master_mask)
+        train_y = mm_endog.data[train_selection]
+        hold_out_y = mm_endog.data[hold_out_selection]
+
+        # Repeat for all columns in X.
+        train_X_data = {}
+        hold_out_X_data = {}
+
+        max_rad_train_X_data = {}
+
+        for col in exog_data.columns:
+            mm_x_col = get_map_data(exog_data[col].values, master_mask)
+            train_X_data[col] = mm_x_col.data[train_selection]
+            hold_out_X_data[col] = mm_x_col.data[hold_out_selection]
+
+            max_rad_train_X_data[col] = mm_x_col.data[max_rad_train_selection]
+
+        train_X = pd.DataFrame(train_X_data)
+        hold_out_X = pd.DataFrame(hold_out_X_data)
+
+        max_rad_train_X = pd.DataFrame(max_rad_train_X_data)
+
+        # Verify that test data for the largest radius is within the range of
+        # observations in the train data.
+        if np.all(
+            np.max(hold_out_X.values, axis=0) <= np.max(max_rad_train_X.values, axis=0)
+        ) and np.all(
+            np.min(hold_out_X.values, axis=0) >= np.min(max_rad_train_X.values, axis=0)
+        ):
+            n_ignored = np.sum(ignored_data[None] & (~master_mask))
+            n_train = np.sum(train_selection)
+            n_hold_out = np.sum(hold_out_selection)
+
+            assert np.sum(max_rad_train_selection) <= n_train
+
+            return (
+                n_ignored,
+                n_train,
+                n_hold_out,
+                total_samples,
+                train_X,
+                hold_out_X,
+                train_y,
+                hold_out_y,
+            )
+        logger.warning("Trying another sample location.")
+        tries += 1
+
+    raise RuntimeError("No suitable site could be found.")
