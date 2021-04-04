@@ -89,7 +89,7 @@ def apply_structure(array, structure):
     central_indices = tuple(map(itemgetter(0), np.where(array)))
 
     bottom_clip = max(halve_n - central_indices[0], 0)
-    top_clip = max(central_indices[0] + halve_n + 1 - array.shape[1], 0)
+    top_clip = max(central_indices[0] + halve_n + 1 - array.shape[0], 0)
     structure = structure[bottom_clip : n - top_clip]
 
     middle_array_index = array.shape[1] // 2
