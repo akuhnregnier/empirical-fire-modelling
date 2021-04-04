@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from operator import itemgetter
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -36,6 +38,80 @@ def generate_structure(N=7, size=1, verbose=False):
         plt.title(f"N={N}, Size={size}, Total={np.sum(structure)}")
 
     return ((N, size, np.sum(structure)), structure)
+
+
+def apply_structure(array, structure):
+    """Apply a structure to an array akin to binary dilation.
+
+    The structure is rolled along axis=1 (longitude) if needed, but clipped along
+    axis=0 (latitude).
+
+    Args:
+        array ((M, N) array): Boolean array.
+        structure ((S, S) array): Boolean array.
+
+    Returns:
+        (M, N) array: Boolean array.
+
+    Raises:
+        ValueError: If any of the arguments is not a 2D array.
+        ValueError: If the number of true elements in `array` is not 1.
+        ValueError: If `structure` is not square.
+        ValueError: If `S` is not odd.
+        ValueError: If there are False elements along the outside of `structure`.
+        ValueError: If `S` exceeds `M` or `N`.
+
+    """
+    if array.ndim != 2 or structure.ndim != 2:
+        raise ValueError("Both arrays need to be 2-dimensional.")
+    if np.sum(array) != 1:
+        raise ValueError("The number of True elements in array should be 1.")
+    if structure.shape[0] != structure.shape[1]:
+        raise ValueError("The structure array should be square.")
+    if structure.shape[0] % 2 == 0:
+        raise ValueError("The number of rows in structure should be odd.")
+    if (
+        not np.any(structure[:, 0])
+        or not np.any(structure[:, -1])
+        or not np.any(structure[0])
+        or not np.any(structure[-1])
+    ):
+        raise ValueError(
+            "The structure should not contain only False elements along its perimeter."
+        )
+    if np.any(np.array(structure.shape) > np.array(array.shape)):
+        raise ValueError(
+            "Size of the structure should not exceed the size of the array."
+        )
+
+    n = structure.shape[0]
+    halve_n = n // 2
+    central_indices = tuple(map(itemgetter(0), np.where(array)))
+
+    bottom_clip = max(halve_n - central_indices[0], 0)
+    top_clip = max(central_indices[0] + halve_n + 1 - array.shape[1], 0)
+    structure = structure[bottom_clip : n - top_clip]
+
+    middle_array_index = array.shape[1] // 2
+
+    # Embed the structure in an empty array of the same size of `array`, then shift
+    # the entries accordingly.
+    canvas = np.zeros_like(array)
+    canvas[
+        central_indices[0]
+        - halve_n
+        + bottom_clip : central_indices[0]
+        + halve_n
+        + 1
+        + top_clip,
+        middle_array_index - halve_n : middle_array_index + halve_n + 1,
+    ] = structure
+
+    # Roll along the axis=1 (longitude).
+    roll_amount = central_indices[1] - middle_array_index
+    canvas = np.roll(canvas, roll_amount, axis=1)
+    # assert False
+    return canvas
 
 
 @cache(dependencies=(get_map_data,), ignore=("verbose", "dpi"))
