@@ -24,7 +24,13 @@ from wildfires.data import get_memory
 from wildfires.joblib.caching import CodeObj
 
 from ..exceptions import NotCachedError
-from .custom_backend import custom_get_hash, register_backend
+from .custom_backend import (
+    HASHES_ONLY,
+    Factory,
+    HashProxy,
+    custom_get_hash,
+    register_backend,
+)
 from .same_call import extract_uniform_args_kwargs
 
 logger = logging.getLogger(__name__)
@@ -150,7 +156,12 @@ def _get_hashed(
 
 
 def cache(
-    *args, memory=_memory, dependencies=(), hash_func=custom_get_hash, ignore=None
+    *args,
+    memory=_memory,
+    dependencies=(),
+    hash_func=custom_get_hash,
+    ignore=None,
+    save_hashes_only=False
 ):
     """A cached function with limited MaskedArray support.
 
@@ -170,6 +181,15 @@ def cache(
         ignore (iterable of str or None): Arguments to ignore when computing the
             argument hash. This means that changes to those arguments will not cause
             the cache to become invalidated.
+        save_hashes_only (bool): If True, only save hash values of the outputs instead
+            of the outputs themselves. When this cached function is called, outputs
+            will only be recomputed if needed - otherwise the saved hash values can be
+            used to retrieve the output of other cached functions that depend on the
+            output of this cached function. When using this option, additional care
+            has to be taken to avoid mutable arguments (e.g. NumPy random Generators,
+            lists, etc...). This is useful for functions which take an intermediate
+            amount of time to run and are part of a chain of cached functions where
+            the results are only needed as intermediaries to arrive at later results.
 
     Returns:
         callable: The cached function with added `check_in_store()` method.
@@ -182,6 +202,7 @@ def cache(
             dependencies=dependencies,
             hash_func=hash_func,
             ignore=ignore,
+            save_hashes_only=save_hashes_only,
         )
 
     assert len(args) == 1
@@ -205,6 +226,8 @@ def cache(
     )
 
     def inner(hashed, args, kwargs):
+        if save_hashes_only:
+            return func(*args, **kwargs), HASHES_ONLY
         return func(*args, **kwargs)
 
     cached_inner = memory.cache(ignore=["args", "kwargs"])(inner)
@@ -222,6 +245,60 @@ def cache(
     @wraps(func)
     def cached_func(*orig_args, **orig_kwargs):
         hashed = bound_get_hashed(*orig_args, **orig_kwargs)
+        if save_hashes_only:
+            if cached_inner.store_backend.contains_item(
+                cached_inner._get_output_identifiers(hashed, orig_args, orig_kwargs)
+            ):
+                # Do not use the original factory functions since these will reference
+                # data that has never been saved. Only extract the saved hash values.
+                cache_proxies = cached_inner(hashed, orig_args, orig_kwargs)
+                if isinstance(cache_proxies, HashProxy):
+                    cached_hash_values = (cache_proxies.hashed_value,)
+                else:
+                    cached_hash_values = tuple(
+                        proxy.hashed_value for proxy in cache_proxies
+                    )
+                # Return a lazy proxy that contains the cached hash values along with
+                # lazy references to the output of the cached function (the
+                # HASHES_ONLY return value is ignored by the backend).
+
+                def process_func():
+                    if hasattr(process_func, "stored"):
+                        logger.debug("Returning previously computed data.")
+                        return process_func.stored
+
+                    logger.debug("Processing data.")
+
+                    # Call the uncached function here since we have already cached the
+                    # hash values. Ignore the additional HASHES_ONLY return value.
+                    process_func.stored = inner(hashed, orig_args, orig_kwargs)[0]
+                    return process_func.stored
+
+                if len(cached_hash_values) == 1:
+                    return HashProxy(
+                        Factory(process_func),
+                        hash_value=cached_hash_values[0],
+                    )
+
+                # Otherwise create a lazy proxy for each individual object to associate each
+                # stored object with its individual hash value.
+
+                def get_factory_func(i):
+                    def factory_func():
+                        return process_func()[i]
+
+                    return factory_func
+
+                return tuple(
+                    HashProxy(Factory(get_factory_func(i)), hash_value=hash_value)
+                    for i, hash_value in enumerate(cached_hash_values)
+                )
+
+            # If this is the first time the function is called, call it normally and
+            # ignore the additional HASHES_ONLY return value.
+
+            return cached_inner(hashed, orig_args, orig_kwargs)[0]
+
         return cached_inner(hashed, orig_args, orig_kwargs)
 
     def check_in_store(*args, **kwargs):

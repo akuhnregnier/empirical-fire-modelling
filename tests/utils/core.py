@@ -19,20 +19,25 @@ def tmp_dir():
 
 
 @pytest.fixture
-def dummy_memory(tmp_dir):
+def dummy_memory(tmp_dir, monkeypatch):
+    monkeypatch.setattr(
+        process_proxy_mod,
+        "MAP_FILENAME",
+        Path(tmp_dir) / "joblib" / "_process_proxy",
+    )
+    if hasattr(process_proxy_mod.get_processed_hash, "hash_map"):
+        del process_proxy_mod.get_processed_hash.hash_map
     return Memory(tmp_dir, backend="custom")
 
 
 @pytest.fixture
-def test_cache(dummy_memory, monkeypatch):
-    monkeypatch.setattr(
-        process_proxy_mod,
-        "MAP_FILENAME",
-        Path(dummy_memory.location) / "joblib" / "_process_proxy",
-    )
-    if hasattr(process_proxy_mod.get_processed_hash, "hash_map"):
-        del process_proxy_mod.get_processed_hash.hash_map
+def test_cache(dummy_memory):
     return cache(memory=dummy_memory)
+
+
+@pytest.fixture
+def test_hash_only_cache(dummy_memory):
+    return cache(memory=dummy_memory, save_hashes_only=True)
 
 
 @pytest.fixture

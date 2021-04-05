@@ -26,6 +26,7 @@ from lazy_object_proxy.slots import Proxy
 from .hashing import get_hash
 
 logger = logging.getLogger(__name__)
+HASHES_ONLY = object()
 
 
 def custom_get_hash(arg):
@@ -249,11 +250,30 @@ class CustomStoreBackend(StoreBackendBase, StoreBackendMixin):
             if verbose > 10:
                 print("Persisting in %s" % item_path)
 
-            def write_func(to_write, dest_filename):
-                with open(dest_filename, "wb") as f:
-                    cloudpickle.dump(to_write, f, protocol=-1)
+            # If requested to do so, do not save the returned `item`. Only a
+            # placeholder is saved instead in this case.
+            if isinstance(item, tuple) and len(item) == 2 and item[1] is HASHES_ONLY:
 
-            self._concurrency_safe_write(item, filename, write_func)
+                def hash_only_write_func(to_write, dest_filename):
+                    # `to_write` is ignored.
+                    with open(dest_filename, "w") as f:
+                        f.write("")
+
+                self._concurrency_safe_write(None, filename, hash_only_write_func)
+
+                # Remove the HASHES_ONLY argument in order to allow the hashing below
+                # to operate normally.
+                item = item[0]
+            else:
+                # Save normally.
+
+                def write_func(to_write, dest_filename):
+                    with open(dest_filename, "wb") as f:
+                        cloudpickle.dump(to_write, f, protocol=-1)
+
+                self._concurrency_safe_write(item, filename, write_func)
+
+            # Always write hash values as normal.
 
             def hash_write_func(to_write, hash_filename):
                 if not isinstance(to_write, tuple):
