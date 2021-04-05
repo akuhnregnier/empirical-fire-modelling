@@ -282,7 +282,12 @@ def random_binary_dilation_split(
     )
 
 
-@cache(dependencies=(get_map_data, apply_structure), ignore=("verbose", "dpi"))
+@cache(
+    dependencies=(get_map_data, apply_structure),
+    ignore=("verbose", "dpi"),
+    # This will typically only be used as an intermediary to fit a model.
+    save_hashes_only=True,
+)
 def buffered_leave_one_out(
     exog_data,
     endog_data,

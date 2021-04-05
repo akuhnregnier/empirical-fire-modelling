@@ -12,8 +12,8 @@ from ..configuration import param_dict
 __all__ = (
     "assign_n_jobs",
     "get_model",
+    "get_model_predict",
     "get_model_scores",
-    "model_predict",
 )
 
 
@@ -43,9 +43,15 @@ def get_model(X_train, y_train, cache_check=False, **kwargs):
     return cache_hash_value(_get_model(X_train, y_train, **kwargs), func=assign_n_jobs)
 
 
-@cache
-def model_predict(model, X):
-    return model.predict(X)
+@cache(ignore=["parallel_backend_call"])
+def get_model_predict(
+    *, X_train, y_train, parallel_backend_call, predict_X, param_dict=param_dict
+):
+    """Cached model prediction."""
+    model = DaskRandomForestRegressor(**param_dict)
+    with parallel_backend_call():
+        model.fit(X_train, y_train)
+    return model.predict(predict_X)
 
 
 @cache
