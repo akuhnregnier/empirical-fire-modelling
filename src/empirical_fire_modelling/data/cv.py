@@ -10,6 +10,7 @@ from scipy import ndimage
 from wildfires.analysis import cube_plotting
 
 from ..cache import cache, mark_dependency
+from ..model import get_model_predict, threading_get_model_predict
 from .core import get_map_data
 
 __all__ = (
@@ -283,10 +284,8 @@ def random_binary_dilation_split(
 
 
 @cache(
-    dependencies=(get_map_data, apply_structure),
+    dependencies=(get_map_data, apply_structure, get_model_predict),
     ignore=("verbose", "dpi"),
-    # This will typically only be used as an intermediary to fit a model.
-    save_hashes_only=True,
 )
 def buffered_leave_one_out(
     exog_data,
@@ -295,7 +294,7 @@ def buffered_leave_one_out(
     radius,
     max_rad,
     seed=0,
-    max_tries=10,
+    max_tries=50,
     verbose=False,
     dpi=400,
 ):
@@ -370,6 +369,16 @@ def buffered_leave_one_out(
         else:
             structure = np.array([[True]])
 
+        # Trim excess False elements.
+        if not np.any(structure[0]):
+            structure = structure[1:]
+        if not np.any(structure[-1]):
+            structure = structure[:-1]
+        if not np.any(structure[:, 0]):
+            structure = structure[:, 1:]
+        if not np.any(structure[:, -1]):
+            structure = structure[:, :-1]
+
         if verbose:
             plt.figure()
             plt.imshow(structure, cmap="Greys", vmin=0, vmax=1)
@@ -387,9 +396,7 @@ def buffered_leave_one_out(
 
     while tries < max_tries:
         # Select a single test sample.
-        test_indices = possible_indices[
-            rng.integers(low=0, high=len(possible_indices), size=(1,))
-        ]
+        test_indices = possible_indices[rng.integers(len(possible_indices), size=(1,))]
         hold_out_selection = np.zeros_like(collapsed_master_mask)
         hold_out_selection[(test_indices[:, 0], test_indices[:, 1])] = True
 
@@ -475,28 +482,39 @@ def buffered_leave_one_out(
 
         # Verify that test data for the largest radius is within the range of
         # observations in the train data.
-        if np.all(
-            np.max(hold_out_X.values, axis=0) <= np.max(max_rad_train_X.values, axis=0)
-        ) and np.all(
-            np.min(hold_out_X.values, axis=0) >= np.min(max_rad_train_X.values, axis=0)
-        ):
+        # For each test sample, require at least one train sample where ALL variables
+        # exceed all test variables, and likewise require at least one train sample
+        # where ALL variables are lower.
+        for test_values in hold_out_X.values:
+            if not np.any(
+                np.all(test_values <= max_rad_train_X.values, axis=1)
+            ) or not np.any(np.all(test_values >= max_rad_train_X.values, axis=1)):
+                logger.warning("Data range test failed.")
+                break
+        else:
+            # If the test above passed, i.e. 'break' was never encountered.
             n_ignored = np.sum(ignored_data[None] & (~master_mask))
             n_train = np.sum(train_selection)
             n_hold_out = np.sum(hold_out_selection)
 
             assert np.sum(max_rad_train_selection) <= n_train
 
+            predicted_y = threading_get_model_predict(
+                X_train=train_X,
+                y_train=train_y,
+                predict_X=hold_out_X,
+            )
+
             return (
+                test_indices[0],
                 n_ignored,
                 n_train,
                 n_hold_out,
                 total_samples,
-                train_X,
-                hold_out_X,
-                train_y,
                 hold_out_y,
+                predicted_y,
             )
-        logger.warning("Trying another sample location.")
         tries += 1
+        logger.warning(f"Trying another sample location ({tries} failed tries).")
 
     raise RuntimeError("No suitable site could be found.")
