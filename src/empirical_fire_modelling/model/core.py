@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
 """Model training."""
 
+from functools import partial
+
 from joblib import parallel_backend
 from sklearn.metrics import mean_squared_error, r2_score
 from wildfires.dask_cx1 import DaskRandomForestRegressor
 from wildfires.qstat import get_ncpus
 
-from ..cache import cache, cache_hash_value
+from ..cache import cache, cache_hash_value, mark_dependency
 from ..configuration import param_dict
 
 __all__ = (
@@ -14,6 +16,7 @@ __all__ = (
     "get_model",
     "get_model_predict",
     "get_model_scores",
+    "threading_get_model_predict",
 )
 
 
@@ -44,6 +47,7 @@ def get_model(X_train, y_train, cache_check=False, **kwargs):
 
 
 @cache(ignore=["parallel_backend_call"])
+@mark_dependency
 def get_model_predict(
     *, X_train, y_train, parallel_backend_call, predict_X, param_dict=param_dict
 ):
@@ -52,6 +56,17 @@ def get_model_predict(
     with parallel_backend_call():
         model.fit(X_train, y_train)
     return model.predict(predict_X)
+
+
+def threading_get_model_predict(*, cache_check=False, **kwargs):
+    """Cached model prediction with the local threading backend."""
+    kwargs["parallel_backend_call"] = (
+        # Use local threading backend.
+        partial(parallel_backend, "threading", n_jobs=get_ncpus())
+    )
+    if cache_check:
+        return get_model_predict.check_in_store(**kwargs)
+    return get_model_predict(**kwargs)
 
 
 @cache
