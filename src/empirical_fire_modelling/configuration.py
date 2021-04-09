@@ -16,6 +16,7 @@ Experiment = Enum(
     "Experiment",
     [
         "ALL",
+        "ALL_NN",
         "TOP15",
         "CURR",
         "15VEG_FAPAR",
@@ -28,6 +29,14 @@ Experiment = Enum(
         "CURRDD_VOD",
         "BEST15",
         "15VEG_FAPAR_MON",
+    ],
+)
+
+Filling = Enum(
+    "Filling",
+    [
+        "NN",
+        "ST",
     ],
 )
 
@@ -48,6 +57,31 @@ figure_save_dir = Path("~") / "tmp" / "empirical_fire_modelling"
 selected_features = dict(
     {
         Experiment.ALL: (
+            reduce(
+                add,
+                (
+                    list(variable.get_shifted_variables(var_factory))
+                    for var_factory in (
+                        variable.DRY_DAY_PERIOD,
+                        variable.SWI,
+                        variable.MAX_TEMP,
+                        variable.DIURNAL_TEMP_RANGE,
+                        variable.LIGHTNING,
+                        variable.PFT_CROP,
+                        variable.POPD,
+                        variable.PFT_HERB,
+                        variable.SHRUB_ALL,
+                        variable.TREE_ALL,
+                        variable.AGB_TREE,
+                        variable.VOD,
+                        variable.FAPAR,
+                        variable.LAI,
+                        variable.SIF,
+                    )
+                ),
+            )
+        ),
+        Experiment.ALL_NN: (
             reduce(
                 add,
                 (

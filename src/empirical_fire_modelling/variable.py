@@ -70,11 +70,25 @@ class StandardVariable(Variable):
         return self.name
 
     @property
+    def _nn_fill_root(self):
+        """Add the fill params if needed."""
+        if self.parent in filled_variables:
+            return f"{self.name} {nn_n_months}NN"
+        return self.name
+
+    @property
     def filled(self):
         """Filled name (if applicable)."""
         if self.parent in filled_variables:
             return f"{self._fill_root} {self.shift}M"
         return self._fill_root
+
+    @property
+    def nn_filled(self):
+        """Filled name (if applicable)."""
+        if self.parent in filled_variables:
+            return f"{self._nn_fill_root} {self.shift}M"
+        return self._nn_fill_root
 
     def __str__(self):
         if self.shift != 0:
@@ -92,6 +106,12 @@ class StandardVariable(Variable):
         if self.shift != 0:
             return f"{self._fill_root} -{self.shift} Month"
         return self._fill_root
+
+    @property
+    def raw_nn_filled(self):
+        if self.shift != 0:
+            return f"{self._nn_fill_root} -{self.shift} Month"
+        return self._nn_fill_root
 
 
 @dataclass(frozen=True, order=True)
@@ -285,8 +305,13 @@ shifted_variables = (DRY_DAY_PERIOD, LAI, FAPAR, VOD, SIF)
 
 # Data filling params.
 filled_variables = (SWI, FAPAR, LAI, VOD, SIF)
+
+# Season-trend & minima.
 st_persistent_perc = 50
 st_k = 4
+
+# NN.
+nn_n_months = 3
 
 
 Category = Enum(
