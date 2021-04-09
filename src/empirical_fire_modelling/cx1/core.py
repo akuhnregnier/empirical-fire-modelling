@@ -36,6 +36,7 @@ def get_parsers():
     parser.add_argument(
         "-s", "--single", action="store_true", help="only run a single iteration"
     )
+    parser.add_argument("--nargs", type=int, help="how many iterations to run")
     parser.add_argument(
         "--uncached", action="store_true", help="only run uncached calls"
     )
@@ -242,7 +243,8 @@ def run(
     cmd_args = get_parsers()["parser"].parse_args()
     verbose = cmd_args.verbose
     single = cmd_args.single
-    kwargs = {**dict(single=single, verbose=verbose), **kwargs}
+    nargs = cmd_args.nargs
+    kwargs = {**dict(single=single, nargs=nargs, verbose=verbose), **kwargs}
 
     if len(args) == 0 or len(args[0]) == 0:
         print("No args given.")
@@ -291,6 +293,11 @@ def run(
         # Only run a single iteration.
         args = list(args)
         args[0] = args[0][:1]  # Because zip() is used later on, this is sufficient.
+        args = tuple(args)
+    elif nargs:
+        # Only run a limited number of iterations.
+        args = list(args)
+        args[0] = args[0][:nargs]  # Because zip() is used later on, this is sufficient.
         args = tuple(args)
 
     if cmd_args.dest == "check" or cmd_args.uncached:
