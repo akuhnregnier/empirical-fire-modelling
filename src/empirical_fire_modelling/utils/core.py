@@ -9,10 +9,10 @@ import pandas as pd
 from dask.distributed import Client
 from sklearn.model_selection import train_test_split
 from wildfires.dask_cx1 import get_client as wildfires_get_client
+from wildfires.exceptions import NotCachedError
 from wildfires.qstat import get_ncpus
 
 from ..configuration import train_test_split_kwargs
-from ..exceptions import NotCachedError
 
 if "TQDMAUTO" in os.environ:
     from tqdm.auto import tqdm

@@ -14,7 +14,7 @@ from wildfires.analysis import data_processing
 from wildfires.data import Dataset, Datasets, dataset_times
 
 from .. import variable
-from ..cache import cache, custom_get_hash, mark_dependency, process_proxy
+from ..cache import cache, mark_dependency, memory, process_proxy
 from ..configuration import (
     Experiment,
     Filling,
@@ -857,7 +857,7 @@ def get_data(
         map(methodcaller("get_offset"), all_features[experiment])
     )
 
-    if custom_get_hash(set(exp_selected_features)) != custom_get_hash(
+    if memory.get_hash(set(exp_selected_features)) != memory.get_hash(
         exog_data_columns
     ):
         assert len(exp_selected_features) == 15

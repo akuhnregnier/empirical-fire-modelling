@@ -1,51 +1,10 @@
 # -*- coding: utf-8 -*-
-
 from collections.abc import Sequence, Set
 
 import joblib
-import numpy as np
-import pandas as pd
-import xxhash
-from wildfires.data import Dataset, Datasets
+from wildfires.cache.hashing import Hasher
 
 from .. import variable
-
-
-def hash_ma(x):
-    """Compute the hash for a numpy MaskedArray."""
-    return xxhash.xxh64_hexdigest(x.data) + xxhash.xxh64_hexdigest(x.mask)
-
-
-def hash_dataset(dataset):
-    """Compute the hash of a Dataset.
-
-    Note: This realises any lazy data.
-
-    """
-    # Compute the hash for each piece of data.
-    dataset_hash = ""
-    for cube in dataset:
-        if isinstance(cube.data, np.ma.core.MaskedArray):
-            dataset_hash += hash_ma(cube.data)
-        else:
-            dataset_hash += xxhash.xxh64_hexdigest(cube.data)
-
-    # Finally consider the coordinates and metadata.
-    dataset_hash += joblib.hashing.hash(dataset._shallow)
-
-    return dataset_hash
-
-
-def hash_df(df):
-    """Compute the hash of a pandas DataFrame.
-
-    This only considers the index, data, and column names.
-
-    """
-    dataset_hash = xxhash.xxh64_hexdigest(np.ascontiguousarray(df.values))
-    dataset_hash += joblib.hashing.hash(df.index)
-    dataset_hash += joblib.hashing.hash(df.columns)
-    return dataset_hash
 
 
 def get_variable_parent_name(var):
@@ -56,57 +15,66 @@ def get_variable_parent_name(var):
         return var.name
 
 
-def get_hash(arg):
-    """Compute a hash with special support for e.g. MaskedArray."""
-    if hasattr(arg, "n_jobs"):
-        # Temporarily set `n_jobs=None` in order to obtain uniform hash values
-        # throughout.
-        mod_n_jobs = True
-        orig_n_jobs = arg.n_jobs
-        arg.n_jobs = None
-    else:
-        mod_n_jobs = False
+class OffsetVariableHasher(Hasher):
+    @staticmethod
+    def test_argument(arg):
+        return isinstance(arg, variable.OffsetVariable)
 
-    if isinstance(arg, np.ma.core.MaskedArray):
-        arg_hash = hash_ma(arg)
-    elif isinstance(arg, Datasets):
-        arg_hash = ""
-        for dataset in arg:
-            arg_hash += hash_dataset(dataset)
-    elif isinstance(arg, Dataset):
-        arg_hash = hash_dataset(arg)
-    elif isinstance(arg, pd.DataFrame):
-        arg_hash = hash_df(arg)
-    # Ignore the Variable 'rank' and 'units' attributes for the hash.
-    elif isinstance(arg, variable.OffsetVariable):
-        arg_hash = joblib.hashing.hash(
+    @staticmethod
+    def hash(arg):
+        # Ignore the Variable 'rank' and 'units' attributes for the hash.
+        return joblib.hashing.hash(
             (arg.name, arg.shift, arg.comp_shift, get_variable_parent_name(arg))
         )
-    elif isinstance(arg, variable.Variable):
-        arg_hash = joblib.hashing.hash(
-            (arg.name, arg.shift, get_variable_parent_name(arg))
+
+
+class VariableHasher(Hasher):
+    @staticmethod
+    def test_argument(arg):
+        return isinstance(arg, variable.Variable)
+
+    @staticmethod
+    def hash(arg):
+        return joblib.hashing.hash((arg.name, arg.shift, get_variable_parent_name(arg)))
+
+
+_variable_hasher = VariableHasher()
+_offset_variable_hasher = OffsetVariableHasher()
+
+
+def get_variable_hash(var):
+    if _offset_variable_hasher.test_argument(var):
+        return _offset_variable_hasher.hash(var)
+    if not _variable_hasher.test_argument(var):
+        raise ValueError("A Variable needs to be given.")
+    return _variable_hasher.hash(var)
+
+
+class VariableSequenceHasher(Hasher):
+    @staticmethod
+    def test_argument(arg):
+        # Hash of a sequence of Variable.
+        return (
+            isinstance(arg, Sequence)
+            and all(isinstance(v, variable.Variable) for v in arg)
+        ) or (
+            isinstance(arg, Set) and all(isinstance(v, variable.Variable) for v in arg)
         )
-    else:
-        try:
-            # Hash of a sequence of Variable.
 
-            arg_hash = None
+    @staticmethod
+    def hash(arg):
+        # Hash of a sequence of Variable.
 
-            if isinstance(arg, Sequence):
-                if all(isinstance(v, variable.Variable) for v in arg):
-                    arg_hash = joblib.hashing.hash(tuple(get_hash(v) for v in arg))
-            elif isinstance(arg, Set):
-                if all(isinstance(v, variable.Variable) for v in arg):
-                    arg_hash = joblib.hashing.hash(set(get_hash(v) for v in arg))
+        arg_hash = None
 
-            if arg_hash is None:
-                raise ValueError()
+        if isinstance(arg, Sequence):
+            if all(isinstance(v, variable.Variable) for v in arg):
+                arg_hash = joblib.hashing.hash(tuple(get_variable_hash(v) for v in arg))
+        elif isinstance(arg, Set):
+            if all(isinstance(v, variable.Variable) for v in arg):
+                arg_hash = joblib.hashing.hash(set(get_variable_hash(v) for v in arg))
 
-        except:
-            arg_hash = joblib.hashing.hash(arg)
+        if arg_hash is None:
+            raise ValueError("Expected a collection of variables.")
 
-    if mod_n_jobs:
-        # Restore the original value.
-        arg.n_jobs = orig_n_jobs
-
-    return arg_hash
+        return arg_hash

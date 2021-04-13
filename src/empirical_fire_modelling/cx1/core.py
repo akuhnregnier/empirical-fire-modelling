@@ -14,9 +14,10 @@ from subprocess import check_output
 
 import cloudpickle
 from jinja2 import Environment, FileSystemLoader
+from wildfires.exceptions import NotCachedError
 
 from ..configuration import Experiment
-from ..exceptions import NoCX1Error, NotCachedError
+from ..exceptions import NoCX1Error
 from ..utils import tqdm
 
 logger = logging.getLogger(__name__)

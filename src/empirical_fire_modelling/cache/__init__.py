@@ -1,4 +1,9 @@
 # -*- coding: utf-8 -*-
-from .core import *
-from .custom_backend import cache_hash_value
-from .process_proxy_mod import process_proxy
+from functools import partial
+
+from wildfires.cache import IN_STORE, cache_hash_value, mark_dependency, process_proxy
+
+from .core import VariableProxyMemory, cache, memory
+
+process_proxy = partial(process_proxy, memory=memory)
+cache_hash_value = partial(cache_hash_value, hash_func=memory.get_hash)

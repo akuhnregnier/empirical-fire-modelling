@@ -6,7 +6,7 @@ from operator import add, methodcaller
 from pathlib import Path
 
 from immutabledict import immutabledict
-from wildfires.data import DATA_DIR
+from wildfires.configuration import DATA_DIR
 
 from . import variable
 

@@ -1,66 +1,29 @@
 # -*- coding: utf-8 -*-
 
+import tempfile
+
 import joblib
-import numpy as np
+import pytest
 
 from empirical_fire_modelling import variable
-from empirical_fire_modelling.cache.hashing import get_hash
-
-from .utils import *  # noqa
+from empirical_fire_modelling.cache import VariableProxyMemory
 
 
-def test_ndarray_get_hash():
-    data = np.arange(int(1e5))
-    orig_hash = get_hash(data)
-    data[int(1e4)] = 0
-    assert get_hash(data) != orig_hash
+@pytest.fixture
+def tmp_dir():
+    tmp_dir = tempfile.TemporaryDirectory()
+    yield tmp_dir.name
+    tmp_dir.cleanup()
 
 
-def test_maskedarray_get_hash():
-    data = np.ma.MaskedArray(np.arange(int(1e5)))
-    data.mask = data.data > int(1e4)
-    orig_hash = get_hash(data)
-    data[int(1e4)] = 0
-    assert get_hash(data) != orig_hash
+@pytest.fixture
+def variable_proxy_memory(tmp_dir):
+    return VariableProxyMemory(tmp_dir)
 
 
-def test_dataset_get_hash(dummy_dataset):
-    # Test that the hash changes when data is changed.
-    orig_hash = get_hash(dummy_dataset)
-    dummy_dataset.cube.data.data[5, 180, 360] = 0
-    mod_hash = get_hash(dummy_dataset)
-    assert mod_hash != orig_hash
+def test_variable_collection_get_hash(variable_proxy_memory):
+    get_hash = variable_proxy_memory.get_hash
 
-    # Test that the hash changes if the mask changes.
-    dummy_dataset.cube.data.mask[5, 180, 360] = True
-    mask_mod_hash = get_hash(dummy_dataset)
-    assert mask_mod_hash != mod_hash
-
-    # Test that the hash changes if a coordinate is altered.
-    dummy_dataset.cube.coord("time").long_name = "testing"
-    coord_mod_hash = get_hash(dummy_dataset)
-    assert coord_mod_hash != mask_mod_hash
-
-
-def test_datasets_get_hash(dummy_datasets):
-    # Test that the hash changes when data is changed.
-    orig_hash = get_hash(dummy_datasets)
-    dummy_datasets.cube.data.data[5, 180, 360] = 0
-    mod_hash = get_hash(dummy_datasets)
-    assert mod_hash != orig_hash
-
-    # Test that the hash changes if the mask changes.
-    dummy_datasets.cube.data.mask[5, 180, 360] = True
-    mask_mod_hash = get_hash(dummy_datasets)
-    assert mask_mod_hash != mod_hash
-
-    # Test that the hash changes if a coordinate is altered.
-    dummy_datasets.cube.coord("time").long_name = "testing"
-    coord_mod_hash = get_hash(dummy_datasets)
-    assert coord_mod_hash != mask_mod_hash
-
-
-def test_variable_collection_get_hash():
     var1 = variable.DRY_DAY_PERIOD[0]
     var2 = variable.DRY_DAY_PERIOD[9]
 

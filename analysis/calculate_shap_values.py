@@ -11,12 +11,12 @@ import matplotlib as mpl
 import numpy as np
 import pandas as pd
 from loguru import logger as loguru_logger
+from wildfires.exceptions import NotCachedError
 
 from empirical_fire_modelling.analysis.shap import get_shap_params, get_shap_values
 from empirical_fire_modelling.configuration import Experiment
 from empirical_fire_modelling.cx1 import get_parsers, run
 from empirical_fire_modelling.data import get_experiment_split_data
-from empirical_fire_modelling.exceptions import NotCachedError
 from empirical_fire_modelling.logging_config import enable_logging
 from empirical_fire_modelling.model import get_model
 from empirical_fire_modelling.utils import tqdm
