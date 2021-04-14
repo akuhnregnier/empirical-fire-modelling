@@ -8,10 +8,11 @@ from operator import attrgetter, methodcaller
 import numpy as np
 import pandas as pd
 from dateutil.relativedelta import relativedelta
+from immutabledict import immutabledict
 from iris.time import PartialDateTime
 from sklearn.model_selection import train_test_split
 from wildfires.analysis import data_processing
-from wildfires.data import Dataset, Datasets, dataset_times
+from wildfires.data import MCD64CMQ_C6, Dataset, Datasets, GFEDv4, dataset_times
 
 from .. import variable
 from ..cache import cache, mark_dependency, memory, process_proxy
@@ -27,6 +28,15 @@ __all__ = (
     "get_experiment_split_data",
     "get_map_data",
     "get_split_data",
+    "ba_dataset_map",
+)
+
+
+ba_dataset_map = immutabledict(
+    {
+        variable.MCD64CMQ_BA: MCD64CMQ_C6,
+        variable.GFED4_BA: GFEDv4,
+    }
 )
 
 
@@ -636,7 +646,7 @@ def get_data(
             "ERA5_Temperature": set(),
             "Ext_ESA_CCI_Landcover_PFT": set(),
             "HYDE": set(),
-            "MCD64CMQ_C6": set(),
+            ba_dataset_map[target_var].__name__: set(),
         }
 
         # Datasets subject to temporal interpolation (filling).
@@ -686,9 +696,9 @@ def get_data(
             "AvitabileThurnerAGB": set(),
             "ERA5_Temperature": set(),
             "Ext_ESA_CCI_Landcover_PFT": set(),
-            "GFEDv4": set(),
             "HYDE": set(),
             "WWLLN": set(),
+            ba_dataset_map[target_var].__name__: set(),
         }
 
         # Datasets subject to temporal interpolation (filling).
@@ -749,9 +759,9 @@ def get_data(
             "AvitabileThurnerAGB": set(),
             "ERA5_Temperature": set(),
             "Ext_ESA_CCI_Landcover_PFT": set(),
-            "GFEDv4": set(),
             "HYDE": set(),
             "WWLLN": set(),
+            ba_dataset_map[target_var].__name__: set(),
         }
 
         # Datasets subject to temporal interpolation (filling).

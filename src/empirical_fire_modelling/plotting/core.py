@@ -10,6 +10,7 @@ import numpy as np
 import seaborn as sns
 from wildfires.analysis import FigureSaver
 from wildfires.analysis import cube_plotting as orig_cube_plotting
+from wildfires.data import dummy_lat_lon_cube
 from wildfires.utils import shorten_features, simple_sci_format, update_nested_dict
 
 from ..configuration import (
@@ -19,6 +20,7 @@ from ..configuration import (
     map_figure_saver_kwargs,
 )
 from ..variable import lags
+from .spec_cube_plot import disc_cube_plot
 
 __all__ = (
     "SetupFourMapAxes",
@@ -156,7 +158,16 @@ def plot_shap_value_maps(
                 plt.close(fig)
 
 
-def ba_plotting(predicted_ba, masked_val_data, figure_saver, cbar_label_x_offset=None):
+def ba_plotting(
+    predicted_ba,
+    masked_val_data,
+    figure_saver,
+    cbar_label_x_offset=None,
+    aux0=None,
+    aux1=None,
+    aux0_label="",
+    aux1_label="",
+):
     # date_str = "2010-01 to 2015-04"
     text_xy = (0.02, 0.935)
 
@@ -179,66 +190,70 @@ def ba_plotting(predicted_ba, masked_val_data, figure_saver, cbar_label_x_offset
         )
         return update_nested_dict(defaults, kwargs)
 
-    assert np.all(predicted_ba.mask == masked_val_data.mask)
+    if not np.all(predicted_ba.mask == masked_val_data.mask):
+        raise ValueError("Predicted BA and Val BA mask should match.")
 
-    boundaries = [1e-5, 1e-4, 1e-3, 1e-2, 1e-1]
+    boundaries = np.geomspace(1e-5, 1e-1, 8)
 
-    cmap = "inferno"
+    cmap = "inferno_r"
     extend = "both"
 
+    plot_kwargs = dict(aux0=aux0, aux1=aux1, fig=fig)
+
     # Plotting observed.
-    fig, cb0 = cube_plotting(
-        masked_val_data,
+    fig, _, cb0 = disc_cube_plot(
+        dummy_lat_lon_cube(np.mean(masked_val_data, axis=0)),
+        bin_edges=boundaries,
         ax=axes[0],
-        **get_plot_kwargs(
-            cmap=cmap,
-            #         title=f"Observed BA\n{date_str}",
-            title="",
-            boundaries=boundaries,
-            extend=extend,
-            cbar_label="Ob. BA",
-        ),
-        return_cbar=True,
+        cmap=cmap,
+        extend=extend,
+        cbar_label="Ob. BA",
+        **plot_kwargs,
     )
 
     # Plotting predicted.
-    fig, cb1 = cube_plotting(
-        predicted_ba,
+    fig, _, cb1 = disc_cube_plot(
+        dummy_lat_lon_cube(np.mean(predicted_ba, axis=0)),
+        bin_edges=boundaries,
         ax=axes[1],
-        **get_plot_kwargs(
-            cmap=cmap,
-            #         title=f"Predicted BA\n{date_str}",
-            title="",
-            boundaries=boundaries,
-            extend=extend,
-            cbar_label="Pr. BA",
-        ),
-        return_cbar=True,
+        cmap=cmap,
+        extend=extend,
+        cbar_label="Pr. BA",
+        **plot_kwargs,
     )
 
-    # frac_diffs = (masked_val_data - predicted_ba) / masked_val_data
     frac_diffs = np.mean(masked_val_data - predicted_ba, axis=0) / np.mean(
         masked_val_data, axis=0
     )
 
     # Plotting differences.
-    diff_boundaries = [-1e1, -1e0, 0, 1e-1]
+    diff_boundaries = [
+        -(10 ** 2),
+        -(10 ** 1),
+        -(10 ** 0),
+        -(3 * 10 ** -2),
+        0,
+        3 * 10 ** -2,
+        3 * 10 ** -1,
+    ]
     extend = "both"
 
-    fig, cb2 = cube_plotting(
-        frac_diffs,
+    fig, _, cb2 = disc_cube_plot(
+        dummy_lat_lon_cube(frac_diffs),
+        bin_edges=diff_boundaries,
         ax=axes[2],
-        **get_plot_kwargs(
-            #         title=f"BA Discrepancy <(Obs. - Pred.) / Obs.> \n{date_str}",
-            title="",
-            cmap_midpoint=0,
-            boundaries=diff_boundaries,
-            cbar_label="<Ob. - Pr.)> / <Ob.>",
-            extend=extend,
-            colorbar_kwargs=dict(aspect=24, shrink=0.6, extendfrac=0.07),
-            cmap="BrBG",
-        ),
-        return_cbar=True,
+        cbar_label="<Ob. - Pr.)> / <Ob.>",
+        extend=extend,
+        cmap="PuOr",
+        # Add labelled rectangles only to the last plot.
+        aux0_label=aux0_label,
+        aux1_label=aux1_label,
+        loc=(0.73, 0.08),
+        height=0.02,
+        aspect=2.5,
+        cmap_midpoint=0,
+        cmap_symmetric=False,
+        **plot_kwargs,
     )
 
     if cbar_label_x_offset is not None:
@@ -261,26 +276,24 @@ def ba_plotting(predicted_ba, masked_val_data, figure_saver, cbar_label_x_offset
     for ax, title in zip(axes, ascii_lowercase):
         ax.text(*text_xy, f"({title})", transform=ax.transAxes)
 
-    # Plot relative MSEs.
-    """
-    rel_mse = frac_diffs ** 2
-    # Plotting differences.
-    diff_boundaries = [1e-1, 1, 1e1, 1e2, 1e3]
-    extend = "both"
-    fig = cube_plotting(
-        rel_mse,
-        **get_plot_kwargs(
-            cmap="inferno",
-    #         title=r"BA Discrepancy <$\mathrm{((Obs. - Pred.) / Obs.)}^2$>" + f"\n{date_str}",
-            title='',
-            boundaries=diff_boundaries,
-            colorbar_kwargs={"label": "1"},
-            extend=extend,
-        ),
-    )
-    plt.gca().text(*text_xy, '(d)', transform=plt.gca().transAxes, fontsize=fs)
-    """
     figure_saver.save_figure(fig, f"ba_prediction", sub_directory="predictions")
+
+    # Visualising the diff distribution.
+
+    # diffs = frac_diffs.data[~frac_diffs.mask].ravel()
+    # diffs = diffs[np.abs(diffs) > 1e-6]
+    # signs = np.sign(diffs)
+    # diffs = np.log10(np.abs(diffs))
+
+    # plt.figure(dpi=300)
+    # plt.title('1')
+    # plt.hist(diffs[signs>0], bins=200)
+    # plt.yscale('log')
+
+    # plt.figure(dpi=300)
+    # plt.title('-1')
+    # plt.hist(diffs[signs<0], bins=200)
+    # plt.yscale('log')
 
 
 class SetupFourMapAxes:
