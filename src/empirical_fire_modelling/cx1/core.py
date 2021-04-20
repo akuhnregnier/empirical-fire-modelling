@@ -42,7 +42,9 @@ def get_parsers():
         "--uncached", action="store_true", help="only run uncached calls"
     )
     parser.add_argument(
-        "--experiment", help="select a specific experiment to run, e.g. 'ALL'"
+        "--experiment",
+        help="select a specific experiment, e.g. 'ALL' - can be given repeatedly",
+        action="append",
     )
     parser.add_argument(
         "--list-experiments", action="store_true", help="list available experiments"
@@ -253,7 +255,7 @@ def run(
 
     if cmd_args.experiment is not None:
         # Select all args matching the given experiment.
-        selected_experiment = Experiment[cmd_args.experiment]
+        selected_experiments = tuple(Experiment[exp] for exp in cmd_args.experiment)
         # One of the args entries should contain Experiments.
         exp_arg_indices = [
             i for i in range(len(args)) if isinstance(args[i][0], Experiment)
@@ -279,7 +281,7 @@ def run(
                 *(
                     single_args
                     for single_args in zip(*args)
-                    if single_args[exp_arg_index] == selected_experiment
+                    if single_args[exp_arg_index] in selected_experiments
                 )
             )
         )

@@ -48,7 +48,7 @@ warnings.filterwarnings(
 )
 
 if __name__ == "__main__":
-    client = get_client(fallback=True, fallback_threaded=True)
+    client = get_client(fallback=False)
 
     # Get training and test data for all variables.
     X_train, X_test, y_train, y_test = get_experiment_split_data(Experiment.ALL)
@@ -73,16 +73,16 @@ if __name__ == "__main__":
 
     combinations = [
         (
-            variable.AGB_TREE[0],
             variable.DRY_DAY_PERIOD[0],
-            variable.DRY_DAY_PERIOD[1],
-            variable.DRY_DAY_PERIOD[3],
-            variable.DRY_DAY_PERIOD[6],
-            variable.DRY_DAY_PERIOD[9],
             variable.MAX_TEMP[0],
             variable.PFT_CROP[0],
-            variable.PFT_HERB[0],
+            variable.DRY_DAY_PERIOD[1],
+            variable.DRY_DAY_PERIOD[3],
+            variable.DRY_DAY_PERIOD[9],
             variable.POPD[0],
+            variable.DRY_DAY_PERIOD[6],
+            variable.LIGHTNING[0],
+            variable.DIURNAL_TEMP_RANGE[0],
             *veg_lag_product,
         )
         for veg_lag_product in product(*veg_lags)

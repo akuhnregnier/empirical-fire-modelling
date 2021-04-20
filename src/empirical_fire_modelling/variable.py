@@ -185,6 +185,31 @@ def get_matching(variables, strict=True, single=True, **criteria):
     return tuple(matching)
 
 
+def match_factory(variable, factories):
+    """Match variable to VariableFactory using rank, name, and units.
+
+    Args:
+        variable (Variable): Variable to match.
+        factories (VariableFactory or tuple of VariableFactory): VariableFactory to
+            check against.
+
+    Returns:
+        bool: True if a match was found against one of the given VariableFactory.
+
+    """
+    if not isinstance(factories, tuple):
+        factories = (factories,)
+
+    for factory in factories:
+        if (
+            variable.rank == factory.rank
+            and variable.name == factory.name
+            and variable.units == factory.units
+        ):
+            return True
+    return False
+
+
 def get_variable_lags(var_factory):
     """Get the lags for a given VariableFactory.
 

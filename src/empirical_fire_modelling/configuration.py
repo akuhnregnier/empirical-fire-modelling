@@ -123,17 +123,19 @@ selected_features = dict(
             variable.LAI[0],
             variable.SIF[0],
         ),
+        # TODO
         Experiment.BEST15: (
             variable.DRY_DAY_PERIOD[0],
-            variable.DRY_DAY_PERIOD[1],
-            variable.DRY_DAY_PERIOD[3],
-            variable.DRY_DAY_PERIOD[6],
-            variable.DRY_DAY_PERIOD[9],
             variable.MAX_TEMP[0],
             variable.PFT_CROP[0],
+            variable.DRY_DAY_PERIOD[1],
+            variable.DRY_DAY_PERIOD[3],
+            variable.DRY_DAY_PERIOD[9],
             variable.POPD[0],
-            variable.PFT_HERB[0],
-            variable.AGB_TREE[0],
+            variable.DRY_DAY_PERIOD[6],
+            variable.LIGHTNING[0],
+            variable.DIURNAL_TEMP_RANGE[0],
+            # TODO
             variable.VOD[9],
             variable.FAPAR[0],
             variable.FAPAR[1],
@@ -143,20 +145,21 @@ selected_features = dict(
         Experiment.TOP15: (
             variable.DRY_DAY_PERIOD[0],
             variable.FAPAR[0],
-            variable.MAX_TEMP[0],
-            variable.VOD[3],
-            variable.LAI[1],
-            variable.DRY_DAY_PERIOD[1],
-            variable.DRY_DAY_PERIOD[3],
-            variable.SIF[0],
-            variable.LAI[3],
-            variable.VOD[0],
             variable.VOD[1],
+            variable.VOD[3],
+            variable.MAX_TEMP[0],
+            variable.SIF[0],
             variable.FAPAR[1],
             variable.PFT_CROP[0],
-            variable.SIF[9],
+            variable.VOD[0],
+            variable.DRY_DAY_PERIOD[1],
+            variable.LAI[1],
+            variable.LAI[3],
+            variable.DRY_DAY_PERIOD[3],
+            variable.DRY_DAY_PERIOD[9],
             variable.POPD[0],
         ),
+        # TODO
         Experiment["15VEG_FAPAR"]: (
             variable.DRY_DAY_PERIOD[0],
             variable.DRY_DAY_PERIOD[1],
@@ -174,6 +177,7 @@ selected_features = dict(
             variable.FAPAR[6],
             variable.FAPAR[9],
         ),
+        # TODO
         Experiment["15VEG_FAPAR_MON"]: (
             variable.DRY_DAY_PERIOD[0],
             variable.DRY_DAY_PERIOD[1],
@@ -191,6 +195,7 @@ selected_features = dict(
             variable.FAPAR[6],
             variable.FAPAR[9],
         ),
+        # TODO
         Experiment["15VEG_LAI"]: (
             variable.DRY_DAY_PERIOD[0],
             variable.DRY_DAY_PERIOD[1],
@@ -208,6 +213,7 @@ selected_features = dict(
             variable.LAI[6],
             variable.LAI[9],
         ),
+        # TODO
         Experiment["15VEG_SIF"]: (
             variable.DRY_DAY_PERIOD[0],
             variable.DRY_DAY_PERIOD[1],
@@ -225,6 +231,7 @@ selected_features = dict(
             variable.SIF[6],
             variable.SIF[9],
         ),
+        # TODO
         Experiment["15VEG_VOD"]: (
             variable.DRY_DAY_PERIOD[0],
             variable.DRY_DAY_PERIOD[1],
@@ -332,22 +339,22 @@ assert all(
 ), "All variables should be variable.Variable instances."
 
 # SHAP parameters.
-# NOTE: original value 2000 (~6 hrs per job?)
-shap_job_samples = 2000  # Samples per job.
-
-shap_interact_params = immutabledict(
-    job_samples=50,  # Samples per job.
-    max_index=5999,  # Maximum job array index (inclusive).
-)
+# ~6 seconds per sample, for the ALL model with 500 estimators.
+shap_job_samples = 1000  # Samples per job.
 
 # Specify common RF (training) params.
 n_splits = 5
 
 default_param_dict = immutabledict(random_state=1, bootstrap=True, oob_score=True)
 
-# XXX: Debug parameters!
 param_dict = immutabledict(
-    {**dict(max_depth=15, n_estimators=40), **default_param_dict}
+    {
+        **dict(
+            max_depth=18,
+            n_estimators=500,
+        ),
+        **default_param_dict,
+    }
 )
 
 # Training and validation test splitting.

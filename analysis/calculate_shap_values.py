@@ -3,6 +3,7 @@
 import logging
 import sys
 import warnings
+from collections import defaultdict
 from operator import attrgetter
 from pathlib import Path
 from pprint import pprint
@@ -39,12 +40,19 @@ warnings.filterwarnings(
 )
 
 
-def shap_values(experiment, index, cache_check=False, **kwargs):
+def shap_values(experiment, index, kind, cache_check=False, **kwargs):
     # Operate on cached data only.
     get_experiment_split_data.check_in_store(experiment)
     X_train, X_test, y_train, y_test = get_experiment_split_data(experiment)
 
-    shap_params = get_shap_params(X_train)
+    if kind == "train":
+        shap_params = get_shap_params(X_train)
+        X = X_train
+    elif kind == "test":
+        shap_params = get_shap_params(X_test)
+        X = X_test
+    else:
+        raise ValueError(f"Unknown kind '{kind}'.")
 
     # Operate on cached fitted models only.
     get_model(X_train, y_train, cache_check=True)
@@ -52,7 +60,7 @@ def shap_values(experiment, index, cache_check=False, **kwargs):
 
     calc_shap_args = (
         rf,
-        X_train.iloc[
+        X.iloc[
             index
             * shap_params["job_samples"] : (index + 1)
             * shap_params["job_samples"]
@@ -69,14 +77,16 @@ if __name__ == "__main__":
     # Relevant if called with the command 'cx1' instead of 'local'.
     cx1_kwargs = dict(walltime="06:00:00", ncpus=1, mem="7GB")
 
-    args = [[], []]
+    args = [[], [], []]
     experiments = list(Experiment)
 
     cmd_args = get_parsers()["parser"].parse_args()
 
     if cmd_args.experiment is not None:
         chosen_experiments = [
-            exp for exp in experiments if exp == Experiment[cmd_args.experiment]
+            exp
+            for exp in experiments
+            if exp in tuple(Experiment[exp] for exp in cmd_args.experiment)
         ]
     else:
         chosen_experiments = experiments.copy()
@@ -96,6 +106,7 @@ if __name__ == "__main__":
             rf = get_model(X_train, y_train)
 
             get_shap_values.check_in_store(rf, X_train)
+            get_shap_values.check_in_store(rf, X_test)
         except NotCachedError:
             run_experiments.append(experiment)
 
@@ -104,10 +115,19 @@ if __name__ == "__main__":
         desc="Preparing SHAP arguments",
         disable=not cmd_args.verbose,
     ):
-        N = get_shap_params(get_experiment_split_data(experiment)[0])["max_index"] + 1
-        indices = np.arange(N)
-        args[0].extend([experiment] * N)
-        args[1].extend(indices)
+        X_train, X_test, y_train, y_test = get_experiment_split_data(experiment)
+        for kind in ["train", "test"]:
+            if kind == "train":
+                X = X_train
+            elif kind == "test":
+                X = X_test
+            else:
+                raise ValueError(f"Unknown kind '{kind}'.")
+            N = get_shap_params(X)["max_index"] + 1
+            indices = np.arange(N)
+            args[0].extend([experiment] * N)
+            args[1].extend(indices)
+            args[2].extend([kind] * N)
 
     raw_shap_data = run(shap_values, *args, cx1_kwargs=cx1_kwargs)
 
@@ -130,7 +150,7 @@ if __name__ == "__main__":
 
     # Load all data, which is faster using `get_shap_values()` along with all
     # data to cache the loading and concatenation of the individual entries.
-    experiment_shap_data = {}
+    experiment_shap_data = defaultdict(dict)
     for experiment in tqdm(
         chosen_experiments,
         desc="Loading joined SHAP data",
@@ -138,17 +158,21 @@ if __name__ == "__main__":
     ):
         X_train, X_test, y_train, y_test = get_experiment_split_data(experiment)
         rf = get_model(X_train, y_train)
-        experiment_shap_data[experiment] = get_shap_values(rf, X_train)
+        experiment_shap_data[experiment]["train"] = get_shap_values(rf, X_train)
+        experiment_shap_data[experiment]["test"] = get_shap_values(rf, X_test)
 
     shap_importances = {}
-    for exp, shap_arr in tqdm(experiment_shap_data.items()):
+    for exp, shap_data in tqdm(experiment_shap_data.items()):
         X_train, X_test, y_train, y_test = get_experiment_split_data(exp)
-        abs_shap_values = np.abs(shap_arr)
+        train_abs_shap_values = np.abs(shap_data["train"])
+        test_abs_shap_values = np.abs(shap_data["test"])
         agg_df = pd.DataFrame(
             {
-                "mean SHAP": np.mean(abs_shap_values, axis=0),
-                "std SHAP": np.std(abs_shap_values, axis=0),
+                "train mean SHAP": np.mean(train_abs_shap_values, axis=0),
+                "train std SHAP": np.std(train_abs_shap_values, axis=0),
+                "test mean SHAP": np.mean(test_abs_shap_values, axis=0),
+                "test std SHAP": np.std(test_abs_shap_values, axis=0),
             },
-            index=map(str, X_train.columns),
+            index=X_train.columns,
         )
-        shap_importances[exp] = agg_df.sort_values("mean SHAP", ascending=False)
+        shap_importances[exp] = agg_df.sort_values("test mean SHAP", ascending=False)

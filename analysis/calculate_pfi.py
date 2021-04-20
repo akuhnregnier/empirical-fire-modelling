@@ -3,7 +3,6 @@
 import logging
 import sys
 import warnings
-from operator import itemgetter
 from pathlib import Path
 from pprint import pprint
 
@@ -70,7 +69,7 @@ def pfi_calc(experiment, cache_check=False, **kwargs):
 
 if __name__ == "__main__":
     # Relevant if called with the command 'cx1' instead of 'local'.
-    cx1_kwargs = dict(walltime="06:00:00", ncpus=32, mem="60GB")
+    cx1_kwargs = dict(walltime="24:00:00", ncpus=32, mem="60GB")
 
     experiments = list(Experiment)
     args_pfi_results = run(
@@ -82,7 +81,7 @@ if __name__ == "__main__":
     args, kwargs, pfi_results = args_pfi_results
 
     pfi_importances = {}
-    for exp, pfi_result in zip(map(itemgetter(0), args), pfi_results):
+    for exp, pfi_result in zip(args[0], pfi_results):
         # Join the train and test data.
         pfi_importances[exp] = (
             pfi_result["train"]
