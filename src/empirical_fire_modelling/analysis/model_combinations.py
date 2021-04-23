@@ -1,15 +1,19 @@
 # -*- coding: utf-8 -*-
+from collections import defaultdict
+
 from joblib import parallel_backend
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import KFold
 from wildfires.dask_cx1 import DaskRandomForestRegressor
 from wildfires.qstat import get_ncpus
 
-from ..cache import cache
+from ..cache import cache, mark_dependency
 from ..configuration import n_splits, param_dict
+from ..utils import tqdm
 
 
 @cache
+@mark_dependency
 def fit_combination(X, y, combination, split_index):
     train_indices, test_indices = zip(
         *KFold(n_splits=n_splits, shuffle=True, random_state=0).split(X)
@@ -45,3 +49,16 @@ def fit_combination(X, y, combination, split_index):
         }
 
     return scores
+
+
+@cache(dependencies=(fit_combination,))
+def cached_multiple_combinations(X, y, combinations, split_indices):
+    """Load cached data for given combinations / splits."""
+    combined_scores = defaultdict(dict)
+    for combination in tqdm(combinations, desc="Loading combinations"):
+        for split_index in split_indices:
+            fit_combination.check_in_store(X, y, combination, split_index)
+            combined_scores[combination][split_index] = fit_combination(
+                X, y, combination, split_index
+            )
+    return dict(combined_scores)

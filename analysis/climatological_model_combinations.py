@@ -10,7 +10,10 @@ import matplotlib as mpl
 from loguru import logger as loguru_logger
 
 from empirical_fire_modelling import variable
-from empirical_fire_modelling.analysis.model_combinations import fit_combination
+from empirical_fire_modelling.analysis.model_combinations import (
+    cached_multiple_combinations,
+    fit_combination,
+)
 from empirical_fire_modelling.configuration import Experiment, n_splits
 from empirical_fire_modelling.cx1 import run
 from empirical_fire_modelling.data import get_experiment_split_data
@@ -109,3 +112,12 @@ if __name__ == "__main__":
         }
     ):
         sys.exit(0)
+
+    # Load cached data for all combinations / splits.
+
+    # Get training and test data for all variables.
+    get_experiment_split_data.check_in_store(Experiment.ALL)
+    X_all, _, y, _ = get_experiment_split_data(Experiment.ALL)
+    combined_scores = cached_multiple_combinations(
+        X_all, y, combinations, range(n_splits)
+    )
