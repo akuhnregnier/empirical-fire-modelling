@@ -30,12 +30,16 @@ __all__ = (
 )
 
 
-def transform_series_sum_norm(x):
+def transform_series_sum_norm(x, y=None):
     """Transform a DataFrame using the sum of absolute values."""
     if not isinstance(x, pd.Series):
         raise ValueError(f"Expected pandas.Series, got '{x}'.")
-    x = x / np.sum(np.abs(x))
-    return x
+    norm = np.sum(np.abs(x))
+    x = x / norm
+    if y is None:
+        return x
+    y = y / norm
+    return x, y
 
 
 def get_mm_indices(master_mask, train_test_split_kwargs=train_test_split_kwargs):

@@ -73,10 +73,8 @@ def fit_buffered_loo_sample(
 
 
 if __name__ == "__main__":
-    pass
-
     # For 40 estimators, ~25 minutes per fit operation.
-    cx1_kwargs = dict(walltime="02:00:00", ncpus=1, mem="10GB")
+    cx1_kwargs = dict(walltime="24:00:00", ncpus=1, mem="10GB")
     experiments = list(Experiment)
 
     max_rad = 50
@@ -84,7 +82,11 @@ if __name__ == "__main__":
     args = [[], [], [], []]
     for experiment in experiments:
         for radius in np.linspace(0, max_rad, 8):
-            for seed in range(1000):
+            # Batches of 1000s (x8 rads) submitted as separate CX1 array jobs due to job size limitations.
+            # for seed in range(1000):
+            # for seed in range(1000, 2000):
+            # for seed in range(2000, 3000):
+            for seed in range(3000, 4000):
                 args[0].append(experiment)
                 args[1].append(radius)
                 args[2].append(max_rad)

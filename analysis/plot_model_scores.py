@@ -97,7 +97,7 @@ def plot_score_groups(experiments, **kwargs):
     oob_kwargs = dict(linestyle="", marker="^", c="C2", label="train OOB")
     ax2.plot(s_oob_r2s, **oob_kwargs)
 
-    ax2.set_yticks(np.arange(0.575, 0.675 + 0.01, 0.025))
+    ax2.set_yticks(np.arange(0.575, 0.7 + 0.01, 0.025))
 
     ax2.legend(
         handles=[
@@ -110,7 +110,7 @@ def plot_score_groups(experiments, **kwargs):
     ylim_1 = ax1.get_ylim()
     ylim_2 = ax2.get_ylim()
 
-    margin_f = (0.03, 0.04)  # Two-sided relative margin addition.
+    margin_f = (0.22, 0.05)  # Two-sided relative margin addition.
     ax1.set_ylim(
         [
             op(ylim_val, factor * np.ptp(ylim_1))
