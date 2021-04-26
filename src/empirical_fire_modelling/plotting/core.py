@@ -179,17 +179,6 @@ def ba_plotting(
         gridspec_kw={"hspace": 0.01, "wspace": 0.01},
     )
 
-    # Plotting params.
-
-    def get_plot_kwargs(cbar_label="Burned Area Fraction", **kwargs):
-        defaults = dict(
-            colorbar_kwargs={
-                "label": cbar_label,
-            },
-            cmap="brewer_RdYlBu_11",
-        )
-        return update_nested_dict(defaults, kwargs)
-
     if not np.all(predicted_ba.mask == masked_val_data.mask):
         raise ValueError("Predicted BA and Val BA mask should match.")
 
@@ -244,7 +233,7 @@ def ba_plotting(
         ax=axes[2],
         cbar_label="<Ob. - Pr.)> / <Ob.>",
         extend=extend,
-        cmap="PuOr",
+        cmap="PuOr_r",
         # Add labelled rectangles only to the last plot.
         aux0_label=aux0_label,
         aux1_label=aux1_label,

@@ -79,17 +79,15 @@ if __name__ == "__main__":
 
     max_rad = 50
 
-    args = [[], [], [], []]
-    for experiment in experiments:
-        for radius in np.linspace(0, max_rad, 8):
-            # Batches of 1000s (x8 rads) submitted as separate CX1 array jobs due to job size limitations.
-            # for seed in range(1000):
-            # for seed in range(1000, 2000):
-            # for seed in range(2000, 3000):
-            for seed in range(3000, 4000):
-                args[0].append(experiment)
-                args[1].append(radius)
-                args[2].append(max_rad)
-                args[3].append(seed)
+    # Batches of 1000s (x8 rads) submitted as separate CX1 array jobs due to job size limitations.
+    for seeds in [range(1000), range(1000, 2000), range(2000, 3000), range(3000, 4000)]:
+        args = [[], [], [], []]
+        for experiment in experiments:
+            for radius in np.linspace(0, max_rad, 8):
+                for seed in seeds:
+                    args[0].append(experiment)
+                    args[1].append(radius)
+                    args[2].append(max_rad)
+                    args[3].append(seed)
 
-    results = run(fit_buffered_loo_sample, *args, cx1_kwargs=cx1_kwargs)
+        results = run(fit_buffered_loo_sample, *args, cx1_kwargs=cx1_kwargs)

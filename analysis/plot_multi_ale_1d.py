@@ -121,5 +121,5 @@ def plot_multi_ale(experiment, verbose=False, **kwargs):
 
 if __name__ == "__main__":
     # Relevant if called with the command 'cx1' instead of 'local'.
-    cx1_kwargs = dict(walltime="01:00:00", ncpus=1, mem="8GB")
+    cx1_kwargs = dict(walltime="24:00:00", ncpus=32, mem="60GB")
     run(plot_multi_ale, list(Experiment), cx1_kwargs=cx1_kwargs)

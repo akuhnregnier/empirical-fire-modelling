@@ -302,6 +302,7 @@ def multi_ale_1d(
         monte_carlo_ratio=monte_carlo_ratio,
         return_data=True,
         return_mc_data=True,
+        show_full=False,
         verbose=verbose,
         center=center,
         fig=fig,
