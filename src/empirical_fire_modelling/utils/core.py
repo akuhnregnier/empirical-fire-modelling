@@ -12,6 +12,8 @@ from wildfires.dask_cx1 import get_client as wildfires_get_client
 from wildfires.exceptions import NotCachedError
 from wildfires.qstat import get_ncpus
 
+from empirical_fire_modelling.cache import cache
+
 from ..configuration import train_test_split_kwargs
 
 if "TQDMAUTO" in os.environ:
@@ -21,6 +23,8 @@ else:
 
 
 __all__ = (
+    "check_master_masks",
+    "column_check",
     "get_client",
     "get_mm_data",
     "get_mm_indices",
@@ -147,3 +151,25 @@ def optional_client_call(func, call_kwargs, cache_check=False, add_client=False)
                 call_kwargs["client"] = client
 
     return func(**call_kwargs), client
+
+
+@cache
+def check_master_masks(*experiment_masks):
+    master_mask = experiment_masks[0]
+    single_master_mask = master_mask[0]
+
+    # Ensure masks are aligned.
+    for exp_master_mask in experiment_masks:
+        if not all(
+            np.all(exp_master_mask[i] == single_master_mask)
+            for i in range(1, exp_master_mask.shape[0])
+        ):
+            raise ValueError(
+                "master_mask should be the same across all times and experiments."
+            )
+
+
+@cache
+def column_check(df, column):
+    """Check if `column` is in `df`."""
+    return column in df.columns

@@ -91,6 +91,7 @@ def plot_ba(experiment, **kwargs):
         aux0_label="BA = 0",
         aux1=nonzero_ba,
         aux1_label="BA > 0",
+        filename=f"{experiment.name}_ba_prediction",
     )
 
 

@@ -1,18 +1,26 @@
 # -*- coding: utf-8 -*-
 """ALE plots."""
 
+import math
+from collections import defaultdict
 from functools import partial
+from operator import attrgetter
 
 import alepython.ale
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
 from alepython import ale_plot, multi_ale_plot_1d
+from alepython.ale import _sci_format
 from joblib import parallel_backend
 from matplotlib.colors import SymLogNorm
+from matplotlib.lines import Line2D
+from wildfires.qstat import get_ncpus
 from wildfires.utils import simple_sci_format
 
-from ..cache import cache
+from empirical_fire_modelling.utils import column_check, tqdm
+
+from ..cache import cache, process_proxy
 
 # Transparently cache the ALE computations.
 alepython.ale.first_order_ale_quant = cache(alepython.ale.first_order_ale_quant)
@@ -318,3 +326,193 @@ def multi_ale_1d(
         )
 
     return final_quantiles
+
+
+def get_model_predict(model):
+    return model.predict
+
+
+def single_ax_multi_ale_1d(
+    ax,
+    feature_data,
+    feature,
+    bins=20,
+    xlabel=None,
+    ylabel=None,
+    title=None,
+    verbose=False,
+):
+    quantile_list = []
+    ale_list = []
+
+    for experiment, single_experiment_data in zip(
+        tqdm(
+            feature_data["experiment"],
+            desc="Calculating feature ALEs",
+            disable=not verbose,
+        ),
+        feature_data["single_experiment_data"],
+    ):
+        model = single_experiment_data["model"]
+        X_train = single_experiment_data["X_train"]
+
+        with parallel_backend("threading", n_jobs=get_ncpus()):
+            quantiles, ale = alepython.ale.first_order_ale_quant(
+                process_proxy((model,), (get_model_predict,))[0],
+                X_train,
+                feature,
+                bins=bins,
+            )
+
+        quantile_list.append(quantiles)
+        ale_list.append(ale)
+
+    # Construct quantiles from the individual quantiles, minimising the amount of interpolation.
+    combined_quantiles = np.vstack([quantiles[None] for quantiles in quantile_list])
+
+    final_quantiles = np.mean(combined_quantiles, axis=0)
+
+    mod_quantiles = np.arange(len(quantiles))
+
+    for plot_kwargs, quantiles, ale in zip(
+        feature_data["plot_kwargs"], quantile_list, ale_list
+    ):
+        # Interpolate each of the quantiles relative to the accumulated final quantiles.
+        ax.plot(
+            np.interp(quantiles, final_quantiles, mod_quantiles),
+            ale,
+            **{"marker": "o", "ms": 3, **plot_kwargs},
+        )
+
+        ax.set_xticks(mod_quantiles[::2])
+        ax.set_xticklabels(
+            [
+                t if t != "0.0e+0" else "0"
+                for t in _sci_format(final_quantiles[::2], scilim=0)
+            ]
+        )
+        ax.xaxis.set_tick_params(rotation=18)
+
+        ax.grid(True)
+
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+
+    ax.set_title(title)
+
+
+def multi_model_ale_1d(
+    variable_factory,
+    experiment_data,
+    experiment_plot_kwargs,
+    lags=(0, 1, 3, 6, 9),
+    bins=20,
+    title=None,
+    verbose=False,
+    figure_saver=None,
+    single_figsize=(5.4, 1.5),
+    legend_bbox=(0.5, 0.5),
+    fig=None,
+    axes=None,
+    legend=True,
+):
+    plotted_experiments = set()
+
+    # Compile data for later plotting.
+    comp_data = {}
+
+    for lag in lags:
+        assert lag <= 9
+
+        feature = variable_factory[lag]
+
+        feature_data = defaultdict(list)
+
+        experiment_count = 0
+        for experiment, single_experiment_data in experiment_data.items():
+            # Skip experiments that do not contain this feature.
+            if not column_check(single_experiment_data["X_train"], feature):
+                continue
+
+            experiment_count += 1
+            plotted_experiments.add(experiment)
+
+            # Data required to calculate the ALEs.
+            feature_data["experiment"].append(experiment)
+            feature_data["single_experiment_data"].append(single_experiment_data)
+            feature_data["plot_kwargs"].append(experiment_plot_kwargs[experiment])
+
+        if experiment_count <= 1:
+            # We need at least two models for a comparison.
+            continue
+
+        comp_data[feature] = feature_data
+
+    n_plots = len(comp_data)
+    n_cols = 2
+    n_rows = math.ceil(n_plots / n_cols)
+
+    if fig is None and axes is None:
+        fig, axes = plt.subplots(
+            n_rows,
+            n_cols,
+            figsize=np.array(single_figsize) * np.array([n_cols, n_rows]),
+        )
+    elif fig is not None and axes is not None:
+        pass
+    else:
+        raise ValueError("Either both or none of fig and axes need to be given.")
+
+    # Disable unused axes.
+    if len(axes.flatten()) > n_plots:
+        for ax in axes.flatten()[-(len(axes.flatten()) - n_plots) :]:
+            ax.axis("off")
+
+    for ax, feature, feature_data in zip(axes.flatten(), comp_data, comp_data.values()):
+        single_ax_multi_ale_1d(
+            ax,
+            feature_data=feature_data,
+            feature=feature,
+            bins=bins,
+            xlabel=str(feature),
+            verbose=verbose,
+        )
+
+    @ticker.FuncFormatter
+    def major_formatter(x, pos):
+        t = np.format_float_scientific(x, precision=1, unique=False, exp_digits=1)
+        if t == "0.0e+0":
+            return "0"
+        elif ".0" in t:
+            return t.replace(".0", "")
+        return t
+
+    for ax in axes.flatten()[:n_plots]:
+        ax.yaxis.set_major_formatter(major_formatter)
+
+    for row_axes in axes:
+        row_axes[0].set_ylabel("ALE (BA)")
+
+    fig.tight_layout()
+
+    lines = []
+    labels = []
+    for experiment in sorted(plotted_experiments, key=attrgetter("value")):
+        lines.append(Line2D([0], [0], **experiment_plot_kwargs[experiment]))
+        labels.append(experiment_plot_kwargs[experiment]["label"])
+
+    if legend:
+        fig.legend(
+            lines,
+            labels,
+            loc="center",
+            bbox_to_anchor=legend_bbox,
+            ncol=len(labels) if len(labels) <= 6 else 6,
+        )
+
+    if figure_saver is not None:
+        figure_saver.save_figure(
+            fig,
+            f"{shorten_features(variable_factory).replace(' ', '_').lower()}_ale_comp",
+            sub_directory="ale_comp",
+        )
