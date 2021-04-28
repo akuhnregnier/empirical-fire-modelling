@@ -174,7 +174,6 @@ selected_features = dict(
             variable.FAPAR[6],
             variable.FAPAR[9],
         ),
-        # TODO: Can't have lightning in here!
         Experiment["15VEG_FAPAR_MON"]: (
             variable.DRY_DAY_PERIOD[0],
             variable.MAX_TEMP[0],
@@ -184,8 +183,9 @@ selected_features = dict(
             variable.DRY_DAY_PERIOD[9],
             variable.POPD[0],
             variable.DRY_DAY_PERIOD[6],
-            variable.LIGHTNING[0],
+            # variable.LIGHTNING[0],  # Ignored here to enable longer time periods.
             variable.DIURNAL_TEMP_RANGE[0],
+            variable.AGB_TREE[0],
             variable.FAPAR[0],
             variable.FAPAR[1],
             variable.FAPAR[3],
