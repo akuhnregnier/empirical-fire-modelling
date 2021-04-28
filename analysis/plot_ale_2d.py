@@ -7,6 +7,7 @@ from itertools import combinations, islice
 from pathlib import Path
 
 import matplotlib as mpl
+import matplotlib.pyplot as plt
 from loguru import logger as loguru_logger
 from wildfires.qstat import get_ncpus
 
@@ -75,6 +76,7 @@ def plot_2d_ale(experiment, single=False, verbose=False, **kwargs):
             plot_samples=plot_samples,
             figure_saver=exp_figure_saver,
         )
+        plt.close("all")
 
 
 if __name__ == "__main__":

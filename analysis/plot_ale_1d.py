@@ -35,9 +35,7 @@ warnings.filterwarnings(
 )
 
 
-def plot_1d_ale(
-    experiment, plot_monte_carlo=True, single=False, verbose=False, **kwargs
-):
+def plot_1d_ale(experiment, column, single=False, verbose=False, **kwargs):
     exp_figure_saver = figure_saver(sub_directory=experiment.name)
 
     # Operate on cached data only.
@@ -48,33 +46,52 @@ def plot_1d_ale(
     get_model(X_train, y_train, cache_check=True)
     model = get_model(X_train, y_train)
 
-    params = []
-    for column in X_train.columns:
-        params.append(column)
-
-    if single:
-        total = 1
-    else:
-        total = len(params)
-
-    for column in tqdm(
-        params[:total],
-        desc=f"1D ALE plotting ({experiment})",
-        disable=not verbose,
-    ):
-        save_ale_1d(
-            model,
-            X_train,
-            column,
-            train_response=y_train,
-            figure_saver=exp_figure_saver,
-            verbose=verbose,
-            monte_carlo_rep=200,
-            monte_carlo_ratio=0.1,
-        )
+    save_ale_1d(
+        model,
+        X_train,
+        column,
+        train_response=y_train,
+        figure_saver=exp_figure_saver,
+        verbose=verbose,
+        monte_carlo_rep=200,
+        monte_carlo_ratio=0.1,
+    )
 
 
 if __name__ == "__main__":
     # Relevant if called with the command 'cx1' instead of 'local'.
-    cx1_kwargs = dict(walltime="01:00:00", ncpus=1, mem="8GB")
-    run(plot_1d_ale, list(Experiment), plot_monte_carlo=False, cx1_kwargs=cx1_kwargs)
+    cx1_kwargs = dict(walltime="24:00:00", ncpus=32, mem="60GB")
+
+    # Prepare arguments (experiment, column).
+    args = [[], []]
+    experiments = list(Experiment)
+
+    cmd_args = get_parsers()["parser"].parse_args()
+
+    if cmd_args.experiment is not None:
+        chosen_experiments = [
+            exp
+            for exp in experiments
+            if exp in tuple(Experiment[exp] for exp in cmd_args.experiment)
+        ]
+    else:
+        chosen_experiments = experiments.copy()
+
+    chosen_experiments = chosen_experiments[: 1 if cmd_args.single else None]
+
+    for experiment in tqdm(
+        chosen_experiments,
+        desc="Preparing ALE 1D arguments",
+        disable=not cmd_args.verbose,
+    ):
+        # Operate on cached data / models only.
+        get_experiment_split_data.check_in_store(experiment)
+        X_train, X_test, y_train, y_test = get_experiment_split_data(experiment)
+
+        get_model(X_train, y_train, cache_check=True)
+
+        for column in X_train.columns:
+            args[0].append(experiment)
+            args[1].extend(column)
+
+    run(plot_1d_ale, *args, cx1_kwargs=cx1_kwargs)
