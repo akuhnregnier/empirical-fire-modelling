@@ -22,9 +22,27 @@ from ..utils import tqdm
 
 logger = logging.getLogger(__name__)
 
-__all__ = ("get_parsers", "run")
+__all__ = (
+    "expand_experiment_strs",
+    "get_parsers",
+    "run",
+)
 
 template_dir = Path(__file__).resolve().parent / "templates"
+
+
+def expand_experiment_strs(experiments):
+    """Expand the special cases and extract Experiment objects."""
+    chosen_experiments = []
+    for exp in experiments:
+        if exp == "CLIM":
+            for clim_exp in clim_experiments:
+                if clim_exp not in chosen_experiments:
+                    chosen_experiments.append(clim_exp)
+        else:
+            if exp not in chosen_experiments:
+                chosen_experiments.append(Experiment[exp])
+    return tuple(chosen_experiments)
 
 
 def get_parsers():
@@ -254,19 +272,8 @@ def run(
         return
 
     if cmd_args.experiment is not None:
-        # Expand the special cases and extract Experiment objects.
-        chosen_experiments = []
-        for exp in cmd_args.experiment:
-            if exp == "CLIM":
-                for clim_exp in clim_experiments:
-                    if clim_exp not in chosen_experiments:
-                        chosen_experiments.append(clim_exp)
-            else:
-                if exp not in chosen_experiments:
-                    chosen_experiments.append(Experiment[exp])
-
         # Select all args matching the given experiment.
-        selected_experiments = tuple(chosen_experiments)
+        selected_experiments = expand_experiment_strs(cmd_args.experiment)
         # One of the args entries should contain Experiments.
         exp_arg_indices = [
             i for i in range(len(args)) if isinstance(args[i][0], Experiment)

@@ -16,7 +16,7 @@ from wildfires.exceptions import NotCachedError
 
 from empirical_fire_modelling.analysis.shap import get_shap_params, get_shap_values
 from empirical_fire_modelling.configuration import Experiment
-from empirical_fire_modelling.cx1 import get_parsers, run
+from empirical_fire_modelling.cx1 import expand_experiment_strs, get_parsers, run
 from empirical_fire_modelling.data import get_experiment_split_data
 from empirical_fire_modelling.logging_config import enable_logging
 from empirical_fire_modelling.model import get_model
@@ -83,18 +83,18 @@ if __name__ == "__main__":
     cmd_args = get_parsers()["parser"].parse_args()
 
     if cmd_args.experiment is not None:
-        chosen_experiments = [
-            exp
-            for exp in experiments
-            if exp in tuple(Experiment[exp] for exp in cmd_args.experiment)
-        ]
+        chosen_experiments = expand_experiment_strs(cmd_args.experiment)
     else:
         chosen_experiments = experiments.copy()
 
     chosen_experiments = chosen_experiments[: 1 if cmd_args.single else None]
 
     run_experiments = []
-    for experiment in chosen_experiments:
+    for experiment in tqdm(
+        chosen_experiments,
+        desc="Determining run-experiments",
+        disable=not cmd_args.verbose,
+    ):
         try:
             # Check if a full cache is already present.
             # Operate on cached data only.
@@ -107,8 +107,12 @@ if __name__ == "__main__":
 
             get_shap_values.check_in_store(rf, X_train)
             get_shap_values.check_in_store(rf, X_test)
+            if cmd_args.verbose:
+                print(f"Experiment {experiment} fully cached.")
         except NotCachedError:
             run_experiments.append(experiment)
+            if cmd_args.verbose:
+                print(f"Experiment {experiment} not fully cached.")
 
     for experiment in tqdm(
         run_experiments,
