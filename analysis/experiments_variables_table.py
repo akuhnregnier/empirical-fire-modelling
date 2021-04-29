@@ -9,6 +9,7 @@ from pathlib import Path
 import matplotlib as mpl
 import pandas as pd
 from loguru import logger as loguru_logger
+from wildfires.utils import shorten_features
 
 from empirical_fire_modelling.configuration import Experiment, selected_features
 from empirical_fire_modelling.logging_config import enable_logging
@@ -64,5 +65,38 @@ if __name__ == "__main__":
             columns=list(map(str, var_factories)),
         )
     )
+    df.rename(
+        {vf: shorten_features(vf) for vf in df.columns}, axis="columns", inplace=True
+    )
 
-    print(df.to_latex())
+    template_spaces = [19, 18, 4, 5, 4, 11, 5, 5, 5, 6, 5, 4, 18, 18, 18, 22]
+
+    formatted_rows = []
+    for row in filter(None, df.to_latex().split("\n")):
+        if not any(
+            element in row
+            for element in ("tabular", "toprule", "midrule", "bottomrule")
+        ):
+            split = row.split(" &")
+            assert len(split) == len(template_spaces)
+            # Pad each of the elements in `split` to match the desired number of
+            # spaces.
+            row = "& ".join(
+                format(x.strip(), f"<{n}") for x, n in zip(split, template_spaces)
+            )
+        formatted_rows.append(row.strip())
+
+    latex_df = "\n".join(formatted_rows) + "\n"
+    assert "l" * len(template_spaces) in latex_df
+    latex_df = latex_df.replace(
+        "l" * len(template_spaces),
+        r"L{2.2cm}L{\acols}lllL{0.6cm}llllllL{\acols}L{\acols}L{\acols}L{\acols}",
+    )
+    latex_df = latex_df.replace("toprule", "tophline")
+    latex_df = latex_df.replace("midrule", "middlehline")
+    latex_df = latex_df.replace("bottomrule", "bottomhline")
+    latex_df = latex_df.replace("Lightning ", "Light-ning")
+    latex_df = latex_df.replace(r"15VEG\_FAPAR\_MON ", r"15VEG\_FAPAR-\_MON")
+    latex_df = latex_df.replace("all A", "all~A")
+
+    print(latex_df)
