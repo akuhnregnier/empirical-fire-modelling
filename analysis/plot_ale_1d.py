@@ -10,7 +10,7 @@ from loguru import logger as loguru_logger
 
 from empirical_fire_modelling.analysis.ale import save_ale_1d
 from empirical_fire_modelling.configuration import Experiment
-from empirical_fire_modelling.cx1 import run
+from empirical_fire_modelling.cx1 import get_parsers, run
 from empirical_fire_modelling.data import get_experiment_split_data
 from empirical_fire_modelling.logging_config import enable_logging
 from empirical_fire_modelling.model import get_model
