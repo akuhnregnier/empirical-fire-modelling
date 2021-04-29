@@ -917,7 +917,7 @@ def get_split_data(
 
 @cache(dependencies=(get_split_data, get_data, _basis_func))
 def get_experiment_split_data(experiment):
-    endog_data, exog_data = get_data(experiment=experiment)[:2]
+    endog_data, exog_data = get_endog_exog_mask(experiment=experiment)[:2]
     return get_split_data(exog_data, endog_data)
 
 
