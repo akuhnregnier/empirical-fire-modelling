@@ -24,11 +24,13 @@ from ..configuration import (
 )
 
 __all__ = (
+    "ba_dataset_map",
     "get_data",
+    "get_endog_exog_mask",
     "get_experiment_split_data",
+    "get_first_cube_datetimes",
     "get_map_data",
     "get_split_data",
-    "ba_dataset_map",
 )
 
 
@@ -927,3 +929,22 @@ def get_map_data(data_1d, master_mask):
     )
     map_data[~master_mask] = data_1d
     return map_data
+
+
+@cache(dependencies=(get_data, _basis_func))
+def get_endog_exog_mask(experiment):
+    endog_data, exog_data, master_mask = get_data(experiment=experiment)[:3]
+    return endog_data, exog_data, master_mask
+
+
+@cache
+def get_first_cube_datetimes(datasets):
+    """Given a Datasets instance, get the datetimes associated with the first cube."""
+    datetimes = [
+        PartialDateTime(
+            year=datasets[0].cubes[0].coord("time").cell(i).point.year,
+            month=datasets[0].cubes[0].coord("time").cell(i).point.month,
+        )
+        for i in range(datasets[0].cubes[0].shape[0])
+    ]
+    return datetimes
