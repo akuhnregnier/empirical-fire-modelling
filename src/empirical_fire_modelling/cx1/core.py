@@ -16,7 +16,7 @@ import cloudpickle
 from jinja2 import Environment, FileSystemLoader
 from wildfires.exceptions import NotCachedError
 
-from ..configuration import Experiment
+from ..configuration import Experiment, clim_experiments
 from ..exceptions import NoCX1Error
 from ..utils import tqdm
 
@@ -254,8 +254,19 @@ def run(
         return
 
     if cmd_args.experiment is not None:
+        # Expand the special cases and extract Experiment objects.
+        chosen_experiments = []
+        for exp in cmd_args.experiment:
+            if exp == "CLIM":
+                for clim_exp in clim_experiments:
+                    if clim_exp not in chosen_experiments:
+                        chosen_experiments.append(clim_exp)
+            else:
+                if exp not in chosen_experiments:
+                    chosen_experiments.append(Experiment[exp])
+
         # Select all args matching the given experiment.
-        selected_experiments = tuple(Experiment[exp] for exp in cmd_args.experiment)
+        selected_experiments = tuple(chosen_experiments)
         # One of the args entries should contain Experiments.
         exp_arg_indices = [
             i for i in range(len(args)) if isinstance(args[i][0], Experiment)
@@ -290,6 +301,7 @@ def run(
         print("Available experiments:")
         for exp in Experiment:
             print(" -", exp.name)
+        print(" -", f"CLIM -> all climatological experiments ({clim_experiments})")
         sys.exit(0)
 
     if single:
