@@ -11,14 +11,13 @@ import numpy as np
 from loguru import logger as loguru_logger
 from matplotlib import ticker
 from matplotlib.colors import LogNorm
-from wildfires.utils import simple_sci_format
 
 from empirical_fire_modelling.configuration import Experiment
 from empirical_fire_modelling.cx1 import run
 from empirical_fire_modelling.data import get_experiment_split_data
 from empirical_fire_modelling.logging_config import enable_logging
 from empirical_fire_modelling.model import get_model, threading_get_model_predict
-from empirical_fire_modelling.plotting import figure_saver
+from empirical_fire_modelling.plotting import figure_saver, get_sci_format
 
 mpl.rc_file(Path(__file__).resolve().parent / "matplotlibrc")
 
@@ -85,23 +84,20 @@ def plot_obs_pred_bin(experiment, **kwargs):
     )
     ax.set_yscale("log")
 
-    spacing = 5
-
-    def offset_simple_sci_format(x, *args, **kwargs):
-
-        canon = simple_sci_format(x, *args, **kwargs)
+    def offset_sci_format(x, *args, **kwargs):
+        canon = get_sci_format(ndigits=0)(x, None)
         if np.isclose(x, 1e-5):
-            return " " * spacing + canon
+            return " " * 10 + canon
+        elif np.isclose(x, 1e-4):
+            return " " * 12 + canon
         elif np.isclose(x, 0):
-            return canon + " " * spacing
+            return canon + " " * 5
         return canon
 
     ax.xaxis.set_major_formatter(
-        ticker.FuncFormatter(lambda x, pos: offset_simple_sci_format(x))
+        ticker.FuncFormatter(lambda x, pos: offset_sci_format(x))
     )
-    ax.yaxis.set_major_formatter(
-        ticker.FuncFormatter(lambda x, pos: simple_sci_format(x))
-    )
+    ax.yaxis.set_major_formatter(ticker.FuncFormatter(get_sci_format(ndigits=0)))
 
     ax.set_xlabel("Observed (BA)")
     ax.set_ylabel("Predicted (BA)")
@@ -113,7 +109,7 @@ def plot_obs_pred_bin(experiment, **kwargs):
         img,
         shrink=0.7,
         aspect=30,
-        format=ticker.FuncFormatter(lambda x, pos: simple_sci_format(x)),
+        format=get_sci_format(ndigits=0),
         pad=0.02,
         label="samples",
     )
