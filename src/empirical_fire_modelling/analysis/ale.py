@@ -2,7 +2,6 @@
 """ALE plots."""
 import math
 from collections import defaultdict
-from functools import partial
 from operator import attrgetter
 
 import alepython.ale
@@ -14,8 +13,9 @@ from joblib import parallel_backend
 from matplotlib.colors import SymLogNorm
 from matplotlib.lines import Line2D
 from wildfires.qstat import get_ncpus
-from wildfires.utils import simple_sci_format
+from wildfires.utils import shorten_features
 
+from .. import variable
 from ..cache import cache, process_proxy
 from ..plotting import get_sci_format
 from ..utils import column_check, tqdm
@@ -94,6 +94,8 @@ def save_ale_2d(
     figure_saver=None,
     plot_samples=True,
     figsize=(6.15, 3.17),
+    *,
+    experiment,
 ):
     model.n_jobs = n_jobs
 
@@ -104,7 +106,7 @@ def save_ale_2d(
     x_coords["ALE end"] = 0.42
     x_coords["ALE cbar start"] = x_coords["ALE end"] + 0.01
     x_coords["ALE cbar end"] = x_coords["ALE cbar start"] + cbar_width
-    x_coords["Samples start"] = 0.65
+    x_coords["Samples start"] = 0.69
     x_coords["Samples end"] = 0.9
     x_coords["Samples cbar start"] = x_coords["Samples end"] + 0.01
     x_coords["Samples cbar end"] = x_coords["Samples cbar start"] + cbar_width
@@ -114,7 +116,7 @@ def save_ale_2d(
     }
     cbar_height = {
         "ALE": 0.6,
-        "Samples": 0.4,
+        "Samples": 0.35,
     }
 
     top = 1
@@ -176,9 +178,7 @@ def save_ale_2d(
                 "kind": "grid",
                 "cmap": "inferno",
                 "colorbar_kwargs": dict(
-                    format=ticker.FuncFormatter(
-                        lambda x, pos: simple_sci_format(x, precision=1)
-                    ),
+                    format=get_sci_format(ndigits=0),
                     cax=cax[0],
                     label="ALE (BA)",
                 ),
@@ -193,15 +193,15 @@ def save_ale_2d(
             axes[ax_key].xaxis.set_tick_params(rotation=50)
 
     axes["ale"].set_aspect("equal")
-    axes["ale"].set_xlabel(features[0].units)
-    axes["ale"].set_ylabel(features[1].units)
+    axes["ale"].set_xlabel(f"{features[0]} ({variable.units[features[0].parent]})")
+    axes["ale"].set_ylabel(f"{features[1]} ({variable.units[features[1].parent]})")
     axes["ale"].set_title("")
 
     axes["ale"].xaxis.set_ticklabels(
-        np.vectorize(partial(simple_sci_format, precision=1))(quantiles_list[0])
+        np.vectorize(get_sci_format(ndigits=1, atol=np.inf))(quantiles_list[0])
     )
     axes["ale"].yaxis.set_ticklabels(
-        np.vectorize(partial(simple_sci_format, precision=1))(quantiles_list[1])
+        np.vectorize(get_sci_format(ndigits=1, atol=np.inf))(quantiles_list[1])
     )
 
     for tick in axes["ale"].xaxis.get_major_ticks():
@@ -217,7 +217,7 @@ def save_ale_2d(
             ax[1].set(
                 **{
                     f"{axis}ticklabels": np.vectorize(
-                        partial(simple_sci_format, precision=1)
+                        get_sci_format(ndigits=1, atol=np.inf)
                     )(quantiles)
                 }
             )
@@ -229,42 +229,44 @@ def save_ale_2d(
         )
 
         @ticker.FuncFormatter
-        def samples_colorbar_fmt(x, pos):
-            if x < 0:
-                raise ValueError("Samples cannot be -ve.")
-            if np.isclose(x, 0):
-                return "0"
+        def integer_sci_format(x, pos):
             if np.log10(x).is_integer():
-                return simple_sci_format(x)
+                return get_sci_format(ndigits=0)(x, pos)
             return ""
 
         fig.colorbar(
             samples_img,
             cax=cax[1],
             label="samples",
-            format=samples_colorbar_fmt,
+            format=integer_sci_format,
         )
         ax[1].xaxis.set_tick_params(rotation=50)
         for tick in ax[1].xaxis.get_major_ticks():
             tick.label1.set_horizontalalignment("right")
         ax[1].set_aspect("equal")
-        ax[1].set_xlabel(features[0].units)
-        ax[1].set_ylabel(features[1].units)
+        ax[1].set_xlabel(f"{features[0]} ({variable.units[features[0].parent]})")
+        ax[1].set_ylabel(f"{features[1]} ({variable.units[features[1].parent]})")
+
         fig.set_constrained_layout_pads(
             w_pad=0.000, h_pad=0.000, hspace=0.0, wspace=0.015
         )
 
     if figure_saver is not None:
+        name_root = (
+            experiment.name
+            + "_"
+            + "__".join(map(shorten_features, map(str, features))).replace(" ", "_")
+        )
         if plot_samples:
             figure_saver.save_figure(
                 fig,
-                "__".join(map(str, features)),
+                name_root,
                 sub_directory="2d_ale_first_order" if include_first_order else "2d_ale",
             )
         else:
             figure_saver.save_figure(
                 fig,
-                "__".join(map(str, features)) + "_no_count",
+                name_root + "_no_count",
                 sub_directory="2d_ale_first_order_no_count"
                 if include_first_order
                 else "2d_ale_no_count",
@@ -328,7 +330,9 @@ def multi_ale_1d(
 
     if figure_saver is not None:
         figure_saver.save_figure(
-            fig, "__".join(map(str, features)), sub_directory=sub_dir
+            fig,
+            "__".join(map(shorten_features(map(str, features)))).replace(" ", "_"),
+            sub_directory=sub_dir,
         )
 
     return final_quantiles

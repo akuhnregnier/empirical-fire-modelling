@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 from loguru import logger as loguru_logger
 from wildfires.qstat import get_ncpus
 
+from empirical_fire_modelling import variable
 from empirical_fire_modelling.analysis.ale import save_ale_2d
 from empirical_fire_modelling.configuration import Experiment
 from empirical_fire_modelling.cx1 import run
@@ -38,7 +39,7 @@ warnings.filterwarnings(
 )
 
 
-def plot_2d_ale(experiment, single=False, verbose=False, **kwargs):
+def plot_2d_ale(experiment, single=False, nargs=None, verbose=False, **kwargs):
     exp_figure_saver = figure_saver(sub_directory=experiment.name)
 
     # Operate on cached data only.
@@ -51,6 +52,28 @@ def plot_2d_ale(experiment, single=False, verbose=False, **kwargs):
 
     columns_list = list(combinations(X_train.columns, 2))
 
+    # Deterministic sorting with FAPAR & FAPAR 1M and FAPAR & DRY_DAY_PERIOD at the
+    # front since these are used in the paper.
+
+    def get_combination_value(column_combination):
+        # Handle special cases first.
+        if (
+            variable.FAPAR[0] in column_combination
+            and variable.FAPAR[1] in column_combination
+        ):
+            return -1000
+        elif (
+            variable.FAPAR[0] in column_combination
+            and variable.DRY_DAY_PERIOD[0] in column_combination
+        ):
+            return -999
+        out = ""
+        for var in column_combination:
+            out += str(var.rank) + str(var.shift)
+        return int(out)
+
+    columns_list = sorted(columns_list, key=get_combination_value)
+
     def param_iter():
         for columns in columns_list:
             for plot_samples in [True, False]:
@@ -58,6 +81,8 @@ def plot_2d_ale(experiment, single=False, verbose=False, **kwargs):
 
     if single:
         total = 1
+    elif nargs:
+        total = nargs
     else:
         total = 2 * len(columns_list)
 
@@ -68,6 +93,7 @@ def plot_2d_ale(experiment, single=False, verbose=False, **kwargs):
         disable=not verbose,
     ):
         save_ale_2d(
+            experiment=experiment,
             model=model,
             train_set=X_train,
             features=columns,
