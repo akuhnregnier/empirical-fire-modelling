@@ -348,12 +348,15 @@ def ba_plotting(
 
 class SetupFourMapAxes:
     """Context manager than handles construction and formatting of map axes.
+
     A single shared colorbar axis is created.
+
     Examples:
         >>> with SetupFourMapAxes() as (fig, axes, cax):  # doctest: +SKIP
         >>>     # Carry out plotting here.
         >>> # Keep using `fig`, etc... here to carry out saving, etc...
         >>> # It is important this is done after __exit__ is called!
+
     """
 
     def __init__(self, figsize=(9.86, 4.93), cbar="vertical"):

@@ -6,16 +6,17 @@ import warnings
 from pathlib import Path
 
 import matplotlib as mpl
-import numpy as np
 from loguru import logger as loguru_logger
-from wildfires.data import GFEDv4
 from wildfires.qstat import get_ncpus
-from wildfires.utils import ensure_datetime, get_land_mask
 from wildfires.variogram import plot_variogram
 
 from empirical_fire_modelling.cx1 import run
+from empirical_fire_modelling.data.gfed4_variogram_data import get_gfed4_variogram_data
 from empirical_fire_modelling.logging_config import enable_logging
-from empirical_fire_modelling.plotting import figure_saver
+from empirical_fire_modelling.plotting import (
+    figure_saver,
+    format_label_string_with_exponent,
+)
 
 mpl.rc_file(Path(__file__).resolve().parent.parent / "matplotlibrc")
 
@@ -36,51 +37,29 @@ warnings.filterwarnings(
 
 
 def gfed4_variogram(i):
-    gfed4 = GFEDv4()
-    if i == -1:
-        title = "Mean GFED4 BA"
-        ba = gfed4.get_mean_dataset().cube
-    else:
-        ba = gfed4.cube[i]
-        title = f"GFED4 BA {ensure_datetime(ba.coord('time').cell(0).point):%Y-%m}"
-
-    ba.data.mask = ~get_land_mask()
-
-    latitudes = ba.coord("latitude").points
-    longitudes = ba.coord("longitude").points
-
-    coords = []
-    for lon in longitudes:
-        for lat in latitudes:
-            coords.append((lat, lon))
-    coords = np.array(coords)
-    ba_flat = ba.data.ravel()
-
-    # Choose indices.
-    valid_indices = np.where(~ba.data.mask.ravel())[0]
-    # Random subset.
-    # inds = np.random.default_rng(0).choice(valid_indices, size=(4000,))
-    # All indices.
-    inds = valid_indices
-
-    # print(f"Max N:    {valid_indices.shape[0]:>10d}")
-    # print(f"Chosen N: {inds.shape[0]:>10d}")
+    chosen_coords, chosen_ba_data, title = get_gfed4_variogram_data(i)
 
     fig, ax1, ax2 = plot_variogram(
-        coords[inds],
-        ba_flat.data[inds],
+        chosen_coords,
+        chosen_ba_data,
         bins=50,
         max_lag=2000,
         n_jobs=get_ncpus(),
         n_per_job=6000,
         verbose=True,
     )
-
-    fig.suptitle(f"{title}, {inds.shape[0]} samples (out of {valid_indices.shape[0]})")
-    ax1.set_ylabel("semivariance")
+    # fig.suptitle(f"{title}, {inds.shape[0]} samples (out of {valid_indices.shape[0]})")
+    ax1.set_ylabel("Semivariance")
     ax2.set_ylabel("N")
     ax2.set_yscale("log")
     ax1.set_xlabel("Lag (km)")
+
+    for ax in (ax1, ax2):
+        ax.grid()
+
+    format_label_string_with_exponent(ax1, axis="y")
+
+    fig.align_labels()
 
     figure_saver.save_figure(fig, "mean_gfed4_variogram")
 
