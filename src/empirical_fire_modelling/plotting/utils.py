@@ -8,7 +8,22 @@ from matplotlib.ticker import FuncFormatter
 from ..exceptions import EmptyUnitSpecError
 
 
-def get_sci_format(ndigits=1, zero_thres=1e-15, zero_str="0", atol=1e-8):
+def get_sci_format(
+    ndigits=1, zero_thres=1e-15, zero_str="0", atol=1e-8, atol_exceeded="raise"
+):
+    """Scientific formatter.
+
+    Args:
+        ndigits (int): Number of digits.
+        zero_thres (float): Threshold for 0.
+        zero_str (str): If the number if within `zero_thres` of 0, use this instead.
+        atol (float): Absolute tolerance to detect incorrect labels.
+        atol_exceeded ({'raise', 'adjust'}): If 'raise', raise ValueError if the
+            tolernace is exceeded by a formatted label. If 'adjust', use `ndigits=10`
+            for this value instead.
+
+    """
+
     @FuncFormatter
     def fmt(x, pos):
         if abs(x) < zero_thres:
@@ -17,10 +32,18 @@ def get_sci_format(ndigits=1, zero_thres=1e-15, zero_str="0", atol=1e-8):
         rounded = round(x / (10 ** exponent), ndigits=ndigits)
         new = rounded * 10 ** exponent
         if abs(new - x) > atol:
-            raise ValueError(
-                f"Discrepancy too large - after rounding: {new} vs. original: {x}"
-            )
-        mantissa = format(rounded, f".{ndigits}f")
+            if atol_exceeded == "adjust":
+                # Use a higher number of ndigits.
+                exponent = math.floor(math.log10(abs(x)))
+                rounded = round(x / (10 ** exponent), ndigits=10)
+                new = rounded * 10 ** exponent
+                mantissa = format(rounded, f".{10}f")
+            else:
+                raise ValueError(
+                    f"Discrepancy too large - after rounding: {new} vs. original: {x}"
+                )
+        else:
+            mantissa = format(rounded, f".{ndigits}f")
         return rf"${mantissa} \times 10^{{{exponent}}}$"
 
     return fmt

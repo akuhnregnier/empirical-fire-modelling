@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 """ALE plots."""
-
 import math
 from collections import defaultdict
 from functools import partial
@@ -11,16 +10,15 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
 from alepython import ale_plot, multi_ale_plot_1d
-from alepython.ale import _sci_format
 from joblib import parallel_backend
 from matplotlib.colors import SymLogNorm
 from matplotlib.lines import Line2D
 from wildfires.qstat import get_ncpus
 from wildfires.utils import simple_sci_format
 
-from empirical_fire_modelling.utils import column_check, tqdm
-
 from ..cache import cache, process_proxy
+from ..plotting import get_sci_format
+from ..utils import column_check, tqdm
 
 # Transparently cache the ALE computations.
 alepython.ale.first_order_ale_quant = cache(alepython.ale.first_order_ale_quant)
@@ -394,10 +392,10 @@ def single_ax_multi_ale_1d(
 
         ax.set_xticks(mod_quantiles[::2])
         ax.set_xticklabels(
-            [
-                t if t != "0.0e+0" else "0"
-                for t in _sci_format(final_quantiles[::2], scilim=0)
-            ]
+            map(
+                lambda x: get_sci_format(ndigits=1, atol=np.inf)(x, None),
+                final_quantiles[::2],
+            )
         )
         ax.xaxis.set_tick_params(rotation=18)
 
@@ -423,6 +421,7 @@ def multi_model_ale_1d(
     fig=None,
     axes=None,
     legend=True,
+    y_ndigits=1,
 ):
     plotted_experiments = set()
 
@@ -486,17 +485,10 @@ def multi_model_ale_1d(
             verbose=verbose,
         )
 
-    @ticker.FuncFormatter
-    def major_formatter(x, pos):
-        t = np.format_float_scientific(x, precision=1, unique=False, exp_digits=1)
-        if t == "0.0e+0":
-            return "0"
-        elif ".0" in t:
-            return t.replace(".0", "")
-        return t
-
     for ax in axes.flatten()[:n_plots]:
-        ax.yaxis.set_major_formatter(major_formatter)
+        ax.yaxis.set_major_formatter(
+            get_sci_format(ndigits=y_ndigits, atol_exceeded="adjust")
+        )
 
     for row_axes in axes:
         row_axes[0].set_ylabel("ALE (BA)")

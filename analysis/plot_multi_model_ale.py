@@ -12,6 +12,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 from loguru import logger as loguru_logger
+from wildfires.utils import shorten_features
 
 from empirical_fire_modelling import variable
 from empirical_fire_modelling.analysis.ale import multi_model_ale_1d
@@ -101,6 +102,7 @@ def multi_model_ale_plot(*args, verbose=False, **kwargs):
             fig=fig,
             axes=axes[:, 0:1],
             lags=lags,
+            y_ndigits=0 if comp_vars[0] is variable.FAPAR else 1,
         )
         multi_model_ale_1d(
             comp_vars[1],
@@ -111,6 +113,7 @@ def multi_model_ale_plot(*args, verbose=False, **kwargs):
             fig=fig,
             axes=axes[:, 1:2],
             lags=lags,
+            y_ndigits=0 if comp_vars[1] is variable.LAI else 1,
         )
 
         for ax in axes[:, 1]:
@@ -126,7 +129,7 @@ def multi_model_ale_plot(*args, verbose=False, **kwargs):
             ax.set_xlabel("")
 
         for ax, var in zip(axes[-1], comp_vars):
-            ax.set_xlabel(var.units)
+            ax.set_xlabel(f"{var} ({variable.units[var]})")
 
         for ax, title in zip(axes.flatten(), ascii_lowercase):
             ax.text(0.5, 1.05, f"({title})", transform=ax.transAxes, fontsize=10)
@@ -135,7 +138,7 @@ def multi_model_ale_plot(*args, verbose=False, **kwargs):
 
         figure_saver.save_figure(
             fig,
-            f"{'__'.join(map(str, comp_vars))}_ale_comp",
+            f"{'__'.join(map(shorten_features, map(str, comp_vars)))}_ale_comp",
             sub_directory="ale_comp",
         )
 

@@ -363,3 +363,24 @@ feature_categories = immutabledict(
         Category.VEGETATION: (VOD, FAPAR, LAI, SIF),
     }
 )
+
+# The units below are used instead of the ones associated with the Variable instances
+# themselves, because the units below are not tied into the caching mechanism. This
+# means they are easier to change should this be necessary.
+units = {
+    DRY_DAY_PERIOD: "days",
+    SWI: r"$\mathrm{m}^3 \mathrm{m}^{-3}$",
+    MAX_TEMP: "K",
+    DIURNAL_TEMP_RANGE: "K",
+    LIGHTNING: r"$\mathrm{strokes}\ \mathrm{km}^{-2}$",
+    PFT_CROP: "1",
+    POPD: r"$\mathrm{inh}\ \mathrm{km}^{-2}$",
+    PFT_HERB: "1",
+    SHRUB_ALL: "1",
+    TREE_ALL: "1",
+    AGB_TREE: r"$\mathrm{kg}\ \mathrm{m}^{-2}$",
+    VOD: "1",
+    FAPAR: "%",
+    LAI: r"$\mathrm{m}^2\ \mathrm{m}^{-2}$",
+    SIF: r"$\mathrm{mW}\ \mathrm{m}^{-2}\ \mathrm{sr}^{-1}\ \mathrm{nm}^{-1}$",
+}
