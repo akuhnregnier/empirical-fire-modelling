@@ -43,10 +43,16 @@ def save_ale_1d(
     center=False,
     figure_saver=None,
     sub_dir="ale",
+    fig=None,
+    ax=None,
 ):
-    fig, ax = plt.subplots(
-        figsize=(7.5, 4.5)
-    )  # Make sure plot is plotted onto a new figure.
+    if fig is None and ax is None:
+        fig = plt.figure(figsize=(7.5, 4.5))
+    elif fig is None:
+        fig = ax.get_figure()
+    if ax is None:
+        ax = plt.axes()
+
     out = ale_plot(
         model,
         X_train,
@@ -66,6 +72,8 @@ def save_ale_1d(
         verbose=verbose,
         center=center,
         rng=np.random.default_rng(0),
+        fig=fig,
+        ax=ax,
     )
     if monte_carlo:
         fig, axes, data, mc_data = out
