@@ -11,8 +11,14 @@ import seaborn as sns
 from wildfires.analysis import FigureSaver
 from wildfires.analysis import cube_plotting as orig_cube_plotting
 from wildfires.data import dummy_lat_lon_cube
-from wildfires.utils import shorten_features, simple_sci_format, update_nested_dict
+from wildfires.utils import (
+    get_land_mask,
+    shorten_features,
+    simple_sci_format,
+    update_nested_dict,
+)
 
+from ..cache import cache
 from ..configuration import (
     Experiment,
     figure_save_dir,
@@ -20,8 +26,10 @@ from ..configuration import (
     main_experiments,
     map_figure_saver_kwargs,
 )
+from ..data import ba_dataset_map
 from ..variable import lags
 from .spec_cube_plot import disc_cube_plot
+from .utils import get_sci_format
 
 __all__ = (
     "SetupFourMapAxes",
@@ -34,6 +42,7 @@ __all__ = (
     "experiment_plot_kwargs",
     "experiment_zorder_dict",
     "figure_saver",
+    "get_aux0_aux1_kwargs",
     "lag_color_dict",
     "lag_colors",
     "map_figure_saver",
@@ -244,7 +253,15 @@ def ba_plotting(
     cmap = "inferno_r"
     extend = "both"
 
-    plot_kwargs = dict(aux0=aux0, aux1=aux1, fig=fig)
+    plot_kwargs = dict(
+        aux0=aux0,
+        aux1=aux1,
+        fig=fig,
+        # Disable checking of the displayed bin edges, since we are sure about which
+        # bin edges we wnat to display (the ones calculated above).
+        cbar_format=get_sci_format(ndigits=1, atol=np.inf),
+        cbar_pad=0.035,
+    )
 
     # Plotting observed.
     fig, _, cb0 = disc_cube_plot(
@@ -294,7 +311,7 @@ def ba_plotting(
         # Add labelled rectangles only to the last plot.
         aux0_label=aux0_label,
         aux1_label=aux1_label,
-        loc=(0.73, 0.08),
+        loc=(0.8, 0.11),
         height=0.02,
         aspect=2.5,
         cmap_midpoint=0,
@@ -447,3 +464,33 @@ class SetupFourMapAxes:
             box.y0 += shift
             box.y1 += shift
             ax.set_position(box)
+
+
+@cache
+def get_aux0_aux1_kwargs(y_test, master_mask):
+    """Calculate regions denoting available BA data.
+
+    These regions are characterised by missing data from other datasets.
+
+    """
+    single_master_mask = master_mask[0]
+    ba_data = ba_dataset_map[y_test.name]().get_mean_dataset().cube.data
+
+    land_mask = get_land_mask()
+
+    # Indicate areas with 0 BA but with BA data availability (but without data
+    # availability otherwise).
+    unique_ba_values = np.unique(ba_data)
+    zero_ba = (ba_data.data < unique_ba_values[1]) & land_mask & single_master_mask
+
+    # Indicate areas with nonzero BA but with BA data availability (but without data
+    # availability otherwise).
+    nonzero_ba = (
+        (ba_data.data.data > unique_ba_values[0]) & land_mask & single_master_mask
+    )
+    return dict(
+        aux0=zero_ba,
+        aux0_label="BA = 0",
+        aux1=nonzero_ba,
+        aux1_label="BA > 0",
+    )

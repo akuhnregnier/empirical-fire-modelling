@@ -8,13 +8,19 @@ from matplotlib.ticker import FuncFormatter
 from ..exceptions import EmptyUnitSpecError
 
 
-def get_sci_format(ndigits=1, zero_thres=1e-15, zero_str="0"):
+def get_sci_format(ndigits=1, zero_thres=1e-15, zero_str="0", atol=1e-8):
     @FuncFormatter
     def fmt(x, pos):
         if abs(x) < zero_thres:
             return zero_str
         exponent = math.floor(math.log10(abs(x)))
-        mantissa = format(round(x / (10 ** exponent), ndigits=ndigits), f".{ndigits}f")
+        rounded = round(x / (10 ** exponent), ndigits=ndigits)
+        new = rounded * 10 ** exponent
+        if abs(new - x) > atol:
+            raise ValueError(
+                f"Discrepancy too large - after rounding: {new} vs. original: {x}"
+            )
+        mantissa = format(rounded, f".{ndigits}f")
         return rf"${mantissa} \times 10^{{{exponent}}}$"
 
     return fmt

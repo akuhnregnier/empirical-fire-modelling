@@ -7,18 +7,21 @@ from pathlib import Path
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-import numpy as np
 from loguru import logger as loguru_logger
-from matplotlib import ticker
-from wildfires.utils import simple_sci_format
 
 from empirical_fire_modelling.configuration import Experiment
 from empirical_fire_modelling.cx1 import run
-from empirical_fire_modelling.data import get_data, get_experiment_split_data
+from empirical_fire_modelling.data import get_endog_exog_mask, get_experiment_split_data
+from empirical_fire_modelling.data.cached_processing import get_obs_pred_diff_cube
 from empirical_fire_modelling.logging_config import enable_logging
 from empirical_fire_modelling.model import get_model, threading_get_model_predict
-from empirical_fire_modelling.plotting import cube_plotting, figure_saver
-from empirical_fire_modelling.utils import get_mm_data
+from empirical_fire_modelling.plotting import (
+    disc_cube_plot,
+    get_aux0_aux1_kwargs,
+    get_sci_format,
+    map_figure_saver,
+)
+from empirical_fire_modelling.utils import check_master_masks
 
 mpl.rc_file(Path(__file__).resolve().parent / "matplotlibrc")
 
@@ -44,8 +47,10 @@ def plot_obs_pred_comp(experiment, **kwargs):
     X_train, X_test, y_train, y_val = get_experiment_split_data(experiment)
     get_model(X_train, y_train, cache_check=True)
 
-    get_data(experiment, cache_check=True)
-    master_mask = get_data(experiment)[2]
+    get_endog_exog_mask.check_in_store(experiment)
+    master_mask = get_endog_exog_mask(experiment)[2]
+
+    check_master_masks(master_mask)
 
     u_pre = threading_get_model_predict(
         X_train=X_train,
@@ -53,26 +58,24 @@ def plot_obs_pred_comp(experiment, **kwargs):
         predict_X=X_test,
     )
 
-    masked_val_data = get_mm_data(y_val.values, master_mask, "val")
-    predicted_ba = get_mm_data(u_pre, master_mask, "val")
+    obs_pred_diff_cube = get_obs_pred_diff_cube(y_val, u_pre, master_mask)
 
-    with figure_saver(sub_directory=experiment.name)(
+    with map_figure_saver(sub_directory=experiment.name)(
         f"{experiment.name}_obs_pred_comp", sub_directory="predictions"
     ):
-        cube_plotting(
-            np.mean(masked_val_data - predicted_ba, axis=0),
+        disc_cube_plot(
+            obs_pred_diff_cube,
             fig=plt.figure(figsize=(5.1, 2.3)),
             cmap="BrBG",
             cmap_midpoint=0,
             cmap_symmetric=False,
-            boundaries=[-0.01, -0.001, -1e-4, 0, 0.001, 0.01, 0.02],
-            colorbar_kwargs=dict(
-                format=ticker.FuncFormatter(lambda x, pos: simple_sci_format(x)),
-                pad=0.02,
-                label="Ob. - Pr.",
-            ),
-            title="",
-            coastline_kwargs={"linewidth": 0.3},
+            bin_edges=[-0.01, -0.001, -1e-4, 0, 0.001, 0.01, 0.02],
+            extend="both",
+            cbar_format=get_sci_format(ndigits=0),
+            cbar_pad=0.025,
+            cbar_label="Ob. - Pr.",
+            **get_aux0_aux1_kwargs(y_val, master_mask),
+            loc=(0.83, 0.14),
         )
 
 

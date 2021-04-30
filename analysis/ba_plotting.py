@@ -6,21 +6,20 @@ import warnings
 from pathlib import Path
 
 import matplotlib as mpl
-import numpy as np
 from loguru import logger as loguru_logger
-from wildfires.utils import get_land_mask
 
 from empirical_fire_modelling.configuration import Experiment
 from empirical_fire_modelling.cx1 import run
-from empirical_fire_modelling.data import (
-    ba_dataset_map,
-    get_data,
-    get_experiment_split_data,
-)
+from empirical_fire_modelling.data import get_endog_exog_mask, get_experiment_split_data
+from empirical_fire_modelling.data.cached_processing import get_ba_plotting_data
 from empirical_fire_modelling.logging_config import enable_logging
 from empirical_fire_modelling.model import get_model, threading_get_model_predict
-from empirical_fire_modelling.plotting import ba_plotting, map_figure_saver
-from empirical_fire_modelling.utils import get_mm_data
+from empirical_fire_modelling.plotting import (
+    ba_plotting,
+    get_aux0_aux1_kwargs,
+    map_figure_saver,
+)
+from empirical_fire_modelling.utils import check_master_masks
 
 mpl.rc_file(Path(__file__).resolve().parent / "matplotlibrc")
 
@@ -41,41 +40,18 @@ warnings.filterwarnings(
 
 
 def plot_ba(experiment, **kwargs):
-    exp_figure_saver = map_figure_saver(sub_directory=experiment.name)
-
     # Operate on cached data only.
     get_experiment_split_data.check_in_store(experiment)
     X_train, X_test, y_train, y_test = get_experiment_split_data(experiment)
 
     # Operate on cached data only.
-    get_data(experiment, cache_check=True)
-    master_mask = get_data(experiment)[2]
+    get_endog_exog_mask.check_in_store(experiment)
+    master_mask = get_endog_exog_mask(experiment)[2]
 
-    single_master_mask = master_mask[0]
-
-    if not all(
-        np.all(master_mask[i] == single_master_mask)
-        for i in range(1, master_mask.shape[0])
-    ):
-        raise ValueError("master_mask should be the same across all times.")
+    check_master_masks(master_mask)
 
     # Operate on cached fitted models only.
     get_model(X_train, y_train, cache_check=True)
-
-    ba_data = ba_dataset_map[y_test.name]().get_mean_dataset().cube.data
-
-    land_mask = get_land_mask()
-
-    # Indicate areas with 0 BA but with BA data availability (but without data
-    # availability otherwise).
-    unique_ba_values = np.unique(ba_data)
-    zero_ba = (ba_data.data < unique_ba_values[1]) & land_mask & single_master_mask
-
-    # Indicate areas with nonzero BA but with BA data availability (but without data
-    # availability otherwise).
-    nonzero_ba = (
-        (ba_data.data.data > unique_ba_values[0]) & land_mask & single_master_mask
-    )
 
     predicted_test = threading_get_model_predict(
         X_train=X_train,
@@ -84,13 +60,9 @@ def plot_ba(experiment, **kwargs):
     )
 
     ba_plotting(
-        get_mm_data(predicted_test, master_mask, kind="val"),
-        get_mm_data(y_test.values, master_mask, kind="val"),
-        figure_saver=exp_figure_saver,
-        aux0=zero_ba,
-        aux0_label="BA = 0",
-        aux1=nonzero_ba,
-        aux1_label="BA > 0",
+        *get_ba_plotting_data(predicted_test, y_test, master_mask),
+        figure_saver=map_figure_saver(sub_directory=experiment.name),
+        **get_aux0_aux1_kwargs(y_test, master_mask),
         filename=f"{experiment.name}_ba_prediction",
     )
 
