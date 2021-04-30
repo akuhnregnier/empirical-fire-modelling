@@ -85,6 +85,7 @@ def plot_multi_ale(experiment, verbose=False, **kwargs):
             monte_carlo_ratio=0.1,
         )
         ax.set_title(title)
+        ax.set_xlabel(f"{feature_factory} ({variable.lags[feature_factory]})")
 
         min_abs = np.min(np.abs(final_quantiles))
         if 0 < min_abs < 1:
@@ -114,7 +115,7 @@ def plot_multi_ale(experiment, verbose=False, **kwargs):
 
     exp_figure_saver.save_figure(
         fig,
-        f'{"__".join(map(str, features))}_ale_shifts',
+        f'{experiment.name}_{"__".join(map(shorten_features, map(str, features)))}_ale_shifts',
         sub_directory="multi_ale",
     )
 
