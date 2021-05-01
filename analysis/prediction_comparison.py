@@ -10,18 +10,22 @@ import matplotlib as mpl
 import numpy as np
 from loguru import logger as loguru_logger
 from wildfires.data import dummy_lat_lon_cube
-from wildfires.utils import get_land_mask, get_unmasked
+from wildfires.utils import get_unmasked
 
 from empirical_fire_modelling.configuration import Experiment
 from empirical_fire_modelling.data import (
-    ba_dataset_map,
     get_data,
+    get_endog_exog_mask,
     get_experiment_split_data,
 )
 from empirical_fire_modelling.logging_config import enable_logging
 from empirical_fire_modelling.model import get_model, threading_get_model_predict
-from empirical_fire_modelling.plotting import disc_cube_plot, map_figure_saver
-from empirical_fire_modelling.utils import get_mm_data
+from empirical_fire_modelling.plotting import (
+    disc_cube_plot,
+    get_aux0_aux1_kwargs,
+    map_figure_saver,
+)
+from empirical_fire_modelling.utils import check_master_masks, get_mm_data
 
 mpl.rc_file(Path(__file__).resolve().parent / "matplotlibrc")
 
@@ -55,21 +59,13 @@ def prediction_comparisons():
         X_train, X_test, y_train, y_test = get_experiment_split_data(experiment)
         get_model(X_train, y_train, cache_check=True)
 
-        experiment_data[experiment] = get_data(experiment)
+        experiment_data[experiment] = get_endog_exog_mask(experiment)
         experiment_models[experiment] = get_model(X_train, y_train)
 
-    master_mask = next(iter(experiment_data.values()))[2]
-    single_master_mask = master_mask[0]
-
     # Ensure masks are aligned.
-    for exp_master_mask in [data[2] for data in experiment_data.values()]:
-        if not all(
-            np.all(exp_master_mask[i] == single_master_mask)
-            for i in range(1, exp_master_mask.shape[0])
-        ):
-            raise ValueError(
-                "master_mask should be the same across all times and experiments."
-            )
+    check_master_masks(*(data[2] for data in experiment_data.values()))
+
+    master_mask = next(iter(experiment_data.values()))[2]
 
     # Record predictions and errors.
     experiment_predictions = {}
@@ -108,21 +104,6 @@ def prediction_comparisons():
     print(f"% >0: {100 * np.sum(all_rel > 0) / all_rel.size:0.1f}")
     print(f"% <0: {100 * np.sum(all_rel < 0) / all_rel.size:0.1f}")
 
-    ba_data = ba_dataset_map[y_test.name]().get_mean_dataset().cube.data
-
-    land_mask = get_land_mask()
-
-    # Indicate areas with 0 BA but with BA data availability (but without data
-    # availability otherwise).
-    unique_ba_values = np.unique(ba_data)
-    zero_ba = (ba_data.data < unique_ba_values[1]) & land_mask & single_master_mask
-
-    # Indicate areas with nonzero BA but with BA data availability (but without data
-    # availability otherwise).
-    nonzero_ba = (
-        (ba_data.data.data > unique_ba_values[0]) & land_mask & single_master_mask
-    )
-
     fig, ax, cbar = disc_cube_plot(
         dummy_lat_lon_cube(rel_error_mag_diff),
         bin_edges=(-0.5, 0, 0.5),
@@ -137,10 +118,7 @@ def prediction_comparisons():
         cbar_pad=0.02,
         cbar_format=None,
         loc=(0.77, 0.15),
-        aux0=zero_ba,
-        aux0_label="BA = 0",
-        aux1=nonzero_ba,
-        aux1_label="BA > 0",
+        **get_aux0_aux1_kwargs(y_test, master_mask),
     )
     cbar.ax.yaxis.label.set_size(7)
 
