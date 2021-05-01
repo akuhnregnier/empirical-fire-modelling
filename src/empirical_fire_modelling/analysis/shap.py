@@ -1,13 +1,17 @@
 # -*- coding: utf-8 -*-
 """SHAP value analysis."""
 import math
+from functools import reduce
+from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
 import shap
-from wildfires.utils import match_shape
+from wildfires.utils import match_shape, shorten_features, significant_peak
 
 from ..cache import cache
 from ..configuration import shap_job_samples
+from ..plotting import cube_plotting, get_sci_format
 from ..utils import get_mm_indices, tqdm
 
 
@@ -87,7 +91,7 @@ def calculate_2d_masked_shap_values(
     X_train,
     master_mask,
     shap_values,
-    kind="train",
+    kind="val",
     additional_mask=None,
 ):
     shap_results = {}
@@ -164,3 +168,154 @@ def calculate_2d_masked_shap_values(
         values["vmax"] = max(values["vmaxs"])
 
     return shap_results
+
+
+def plot_shap_value_maps(
+    X_train, shap_results, map_figure_saver, directory="shap_maps", close=True
+):
+    """
+
+    Args:
+        X_train (pandas DataFrame):
+        shap_results (SHAP results dict from `calculate_2d_masked_shap_values`):
+        map_figure_saver (FigureSaver instance):
+        directory (str or Path): Figure saving directory.
+        close (bool): If True, close figures after saving.
+
+    """
+    # Define common plotting profiles, as `cube_plotting` kwargs.
+
+    def get_plot_kwargs(feature, results_dict, title_stub, kind=None):
+        kwargs = dict(
+            fig=plt.figure(figsize=(5.1, 2.8)),
+            title=f"{title_stub} '{shorten_features(feature)}'",
+            nbins=7,
+            vmin=results_dict["vmin"],
+            vmax=results_dict["vmax"],
+            log=True,
+            log_auto_bins=False,
+            extend="neither",
+            min_edge=1e-3,
+            cmap="inferno",
+            colorbar_kwargs=dict(
+                format=get_sci_format(ndigits=1, atol_exceeded="adjust"),
+                label=f"SHAP ('{shorten_features(str(feature))}')",
+            ),
+            coastline_kwargs={"linewidth": 0.3},
+        )
+        if kind == "mean":
+            kwargs.update(
+                cmap="Spectral_r",
+                cmap_midpoint=0,
+                cmap_symmetric=True,
+            )
+        if kind == "rel_std":
+            kwargs.update(
+                vmin=1e-2,
+                vmax=10,
+                extend="both",
+                nbins=5,
+            )
+        return kwargs
+
+    for i, feature in enumerate(tqdm(X_train.columns, desc="Mapping SHAP values")):
+        for agg_key, title_stub, kind, sub_directory in (
+            ("masked_shap_arrs", "Mean SHAP value for", "mean", "mean"),
+            ("masked_shap_arrs_std", "STD SHAP value for", None, "std"),
+            (
+                "masked_shap_arrs_rel_std",
+                "Rel STD SHAP value for",
+                "rel_std",
+                "rel_std",
+            ),
+            ("masked_abs_shap_arrs", "Mean |SHAP| value for", None, "abs_mean"),
+            ("masked_abs_shap_arrs_std", "STD |SHAP| value for", None, "abs_std"),
+            (
+                "masked_abs_shap_arrs_rel_std",
+                "Rel STD |SHAP| value for",
+                "rel_std",
+                "rel_abs_std",
+            ),
+            ("masked_max_shap_arrs", "Max || SHAP value for", "mean", "max"),
+        ):
+            fig = cube_plotting(
+                shap_results[agg_key]["data"][i],
+                **get_plot_kwargs(
+                    feature,
+                    results_dict=shap_results[agg_key],
+                    title_stub=title_stub,
+                    kind=kind,
+                ),
+            )
+            map_figure_saver.save_figure(
+                fig,
+                f"{agg_key}_{feature}",
+                sub_directory=Path(directory) / sub_directory,
+            )
+            if close:
+                plt.close(fig)
+
+
+@cache
+def get_max_positions(
+    *,
+    X,
+    variables,
+    shap_results,
+    shap_measure,
+    mean_ba,
+    exclude_inst,
+    ptp_threshold_factor,
+    diff_threshold,
+):
+    """Using SHAP values, get weighted average of lags."""
+    lags = tuple(v.shift for v in variables)
+    # Ensure lags are sorted consistently.
+    assert list(lags) == sorted(lags)
+
+    if exclude_inst and 0 in lags:
+        assert lags[0] == 0
+        lags = lags[1:]
+        variables = variables[1:]
+
+    n_features = len(variables)
+
+    # There is no point plotting this map for a single feature or less since we are
+    # interested in a comparison between different feature ranks.
+    if n_features <= 1:
+        raise ValueError(f"Too few features: {n_features}.")
+
+    selected_data = np.empty(n_features, dtype=object)
+    for i, var in enumerate(X.columns):
+        if var in variables:
+            selected_data[lags.index(var.shift)] = shap_results[shap_measure]["data"][
+                i
+            ].copy()
+
+    shared_mask = reduce(np.logical_or, (data.mask for data in selected_data))
+    for data in selected_data:
+        data.mask = shared_mask
+
+    stacked_shaps = np.vstack([data.data[np.newaxis] for data in selected_data])
+
+    # Calculate the significance of the global maxima for each of the valid pixels.
+
+    # Valid indices are recorded in 'shared_mask'.
+
+    valid_i, valid_j = np.where(~shared_mask)
+
+    max_positions = np.ma.MaskedArray(
+        np.zeros_like(shared_mask, dtype=np.float64), mask=True
+    )
+    for i, j in zip(tqdm(valid_i, desc="Evaluating maxima", smoothing=0), valid_j):
+        ptp_threshold = ptp_threshold_factor * mean_ba[i, j]
+        if significant_peak(
+            stacked_shaps[:, i, j],
+            diff_threshold=diff_threshold,
+            ptp_threshold=ptp_threshold,
+        ):
+            # If the maximum is significant, go on the calculate the weighted avg. of the signal.
+            max_positions[i, j] = np.average(
+                lags, weights=np.abs(stacked_shaps[:, i, j])
+            )
+    return max_positions
