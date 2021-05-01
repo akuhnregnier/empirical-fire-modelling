@@ -22,6 +22,7 @@ def disc_cube_plot(
     aux1_label="",
     aux0_c=np.array([150, 150, 150, 200], dtype=np.float64) / 255,
     aux1_c=np.array([64, 64, 64, 200], dtype=np.float64) / 255,
+    cbar=True,
     cbar_label="",
     cbar_orientation="vertical",
     cbar_fraction=0.02,
@@ -157,21 +158,24 @@ def disc_cube_plot(
         transform=ccrs.PlateCarree(),
     )
 
-    cbar = fig.colorbar(
-        mesh,
-        label=cbar_label,
-        orientation=cbar_orientation,
-        fraction=cbar_fraction,
-        pad=cbar_pad,
-        aspect=cbar_aspect,
-        shrink=cbar_shrink,
-        extendfrac=cbar_extendfrac,
-        anchor=cbar_anchor,
-        panchor=cbar_panchor,
-        format=cbar_format,
-        cax=cax,
-        ax=ax,
-    )
+    if cbar:
+        colorbar = fig.colorbar(
+            mesh,
+            label=cbar_label,
+            orientation=cbar_orientation,
+            fraction=cbar_fraction,
+            pad=cbar_pad,
+            aspect=cbar_aspect,
+            shrink=cbar_shrink,
+            extendfrac=cbar_extendfrac,
+            anchor=cbar_anchor,
+            panchor=cbar_panchor,
+            format=cbar_format,
+            cax=cax,
+            ax=ax,
+        )
+    else:
+        colorbar = None
 
     if aux0 is not None or aux1 is not None:
         if aux0 is not None and aux1 is not None:
@@ -256,4 +260,4 @@ def disc_cube_plot(
     ax.gridlines(zorder=0, alpha=0.4, linestyle="--", linewidth=0.3)
     ax.coastlines(resolution="110m", linewidth=0.5)
 
-    return fig, ax, cbar
+    return fig, ax, colorbar

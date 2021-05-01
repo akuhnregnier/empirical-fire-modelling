@@ -9,6 +9,7 @@ from string import ascii_lowercase
 import matplotlib as mpl
 import numpy as np
 from loguru import logger as loguru_logger
+from wildfires.data import dummy_lat_lon_cube
 from wildfires.utils import get_masked_array, shorten_features
 
 from empirical_fire_modelling import variable
@@ -23,7 +24,8 @@ from empirical_fire_modelling.logging_config import enable_logging
 from empirical_fire_modelling.model import get_model
 from empirical_fire_modelling.plotting import (
     SetupFourMapAxes,
-    cube_plotting,
+    disc_cube_plot,
+    get_aux0_aux1_kwargs,
     map_figure_saver,
 )
 from empirical_fire_modelling.utils import check_master_masks, tqdm
@@ -113,21 +115,21 @@ if __name__ == "__main__":
             # with HashProxy instances, so just grab the underlying data here (which
             # is done later on anyway).
             max_positions = max_positions.__wrapped__
-            cube_plotting(
-                max_positions,
-                title="",
-                colorbar_kwargs=False
-                if i < 3
-                else dict(
-                    label="month",
-                    format="%0.0f",
-                    cax=cax,
-                    orientation="horizontal",
-                ),
-                extend="both",
-                vmin=1,
-                vmax=6,
+            disc_cube_plot(
+                dummy_lat_lon_cube(max_positions),
                 ax=ax,
+                bin_edges=np.linspace(1, 6, 11),
+                extend="both",
+                cmap="viridis",
+                cbar=i == 3,
+                cbar_label="month",
+                cbar_format="%0.0f",
+                cax=cax,
+                cbar_orientation="horizontal",
+                **get_aux0_aux1_kwargs(y_test, master_mask),
+                loc=(0.75, 0.11),
+                height=0.032,
+                aspect=1.35,
             )
             short_feature = shorten_features(str(variable_factory))
             if exclude_inst:
@@ -145,7 +147,7 @@ if __name__ == "__main__":
     # Save the combined figure.
     map_figure_saver.save_figure(
         fig,
-        f"{experiment.name}_normal_ba_weighted_max_shap_fapar_dry_days",
+        f"{experiment.name}_normal_ba_weighted_max_shap_FAPAR__DD",
         sub_directory=Path(f"{experiment.name}") / "weighted_shap_maps",
         dpi=350,
     )
