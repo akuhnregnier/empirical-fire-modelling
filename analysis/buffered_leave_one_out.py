@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Buffered leave-one-out cross validation."""
+import gc
 import logging
 import sys
 import warnings
@@ -11,7 +12,7 @@ from loguru import logger as loguru_logger
 
 from empirical_fire_modelling.configuration import Experiment
 from empirical_fire_modelling.cx1 import run
-from empirical_fire_modelling.data import buffered_leave_one_out, get_data
+from empirical_fire_modelling.data import buffered_leave_one_out, get_endog_exog_mask
 from empirical_fire_modelling.logging_config import enable_logging
 
 mpl.rc_file(Path(__file__).resolve().parent / "matplotlibrc")
@@ -36,8 +37,8 @@ def fit_buffered_loo_sample(
     experiment, radius, max_rad, seed, cache_check=False, **kwargs
 ):
     # Operate on cached data only.
-    get_data(experiment, cache_check=True)
-    endog_data, exog_data, master_mask = get_data(experiment)[:3]
+    get_endog_exog_mask.check_in_store(experiment)
+    endog_data, exog_data, master_mask = get_endog_exog_mask(experiment)
 
     bloo_kwargs = dict(
         exog_data=exog_data,
@@ -45,6 +46,7 @@ def fit_buffered_loo_sample(
         master_mask=master_mask,
         radius=radius,
         max_rad=max_rad,
+        extrapolation_check=False,
         seed=seed,
         verbose=False,
         dpi=300,
@@ -69,12 +71,15 @@ def fit_buffered_loo_sample(
         total_samples,
     )
 
+    # Prevents memory buildup over repeated calls.
+    gc.collect()
+
     return (data_info, hold_out_y, predicted_y)
 
 
 if __name__ == "__main__":
     # For 40 estimators, ~25 minutes per fit operation.
-    cx1_kwargs = dict(walltime="24:00:00", ncpus=1, mem="10GB")
+    cx1_kwargs = dict(walltime="24:00:00", ncpus=1, mem="4GB")
     experiments = list(Experiment)
 
     max_rad = 50

@@ -295,6 +295,7 @@ def buffered_leave_one_out(
     max_rad,
     seed=0,
     max_tries=50,
+    extrapolation_check=False,
     verbose=False,
     dpi=400,
 ):
@@ -314,6 +315,8 @@ def buffered_leave_one_out(
             are located.
         max_tries (int): Number of allowed attempts to find a test sample that is
             within the train observations, given the maximum excluded radius `max_rad`.
+        extrapolation_check (bool): If True, require that no extrapolation is done
+            during testing relative to the training set.
         verbose (bool): Plot the training and test masks.
         dpi (int): Figure dpi. Only used if `verbose` is True.
 
@@ -486,9 +489,10 @@ def buffered_leave_one_out(
         # exceed all test variables, and likewise require at least one train sample
         # where ALL variables are lower.
         for test_values in hold_out_X.values:
-            if not np.any(
-                np.all(test_values <= max_rad_train_X.values, axis=1)
-            ) or not np.any(np.all(test_values >= max_rad_train_X.values, axis=1)):
+            if extrapolation_check and (
+                not np.any(np.all(test_values <= max_rad_train_X.values, axis=1))
+                or not np.any(np.all(test_values >= max_rad_train_X.values, axis=1))
+            ):
                 logger.warning("Data range test failed.")
                 break
         else:
