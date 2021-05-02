@@ -50,22 +50,6 @@ def expand_experiment_strs(experiments):
     return tuple(chosen_experiments)
 
 
-def add_local_multi_args(parser):
-    parser.add_argument(
-        "-n",
-        "--n-cores",
-        default=1,
-        type=int,
-        help="number of cores to use in parallel (default: single threaded)",
-    )
-    mode_group = parser.add_mutually_exclusive_group(required=False)
-    mode_group.add_argument(
-        "--threads", action="store_true", help="use threads (default)"
-    )
-    mode_group.add_argument("--processes", action="store_true", help="use processes")
-    return mode_group
-
-
 def get_parsers():
     """Parse command line arguments to determine where to run a function."""
     parser = ArgumentParser(description="Run a function either locally or on CX1")
@@ -88,27 +72,34 @@ def get_parsers():
     parser.add_argument(
         "--list-experiments", action="store_true", help="list available experiments"
     )
+    # Multiple threads / processes.
+    parser.add_argument(
+        "-n",
+        "--n-cores",
+        default=1,
+        type=int,
+        help="number of cores to use in parallel (default: single threaded)",
+    )
+    mode_group = parser.add_mutually_exclusive_group(required=False)
+    mode_group.add_argument(
+        "--threads", action="store_true", help="use threads (default)"
+    )
+    mode_group.add_argument("--processes", action="store_true", help="use processes")
 
     subparsers = parser.add_subparsers(
         help="execution target", dest="dest", required=True
     )
     local_parser = subparsers.add_parser("local", help="run functions locally")
-    local_mode_group = add_local_multi_args(local_parser)
-
     cx1_parser = subparsers.add_parser("cx1", help="run functions on CX1 using PBS")
-
     check_parser = subparsers.add_parser(
         "check", help="locally check which calls are cached"
     )
-    # Enable multithreaded / multiprocessed checking.
-    check_mode_group = add_local_multi_args(check_parser)
 
     return dict(
         parser=parser,
         subparsers=subparsers,
         local_parser=local_parser,
-        local_mode_group=local_mode_group,
-        check_mode_group=check_mode_group,
+        mode_group=mode_group,
         cx1_parser=cx1_parser,
         check_parser=check_parser,
     )
