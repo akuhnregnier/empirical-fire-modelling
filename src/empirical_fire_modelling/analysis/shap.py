@@ -319,3 +319,32 @@ def get_max_positions(
                 lags, weights=np.abs(stacked_shaps[:, i, j])
             )
     return max_positions
+
+
+def sort_peaks(peaks, sep="|"):
+    """Sort peak combinations by first sign and month.
+
+    Examples:
+        >>> sort_peaks(['0(+)', '0(-)', '12(+)|0(+)', '12(+)|0(-)', '6(-)', '3(+)'])
+        ['0(+)', '3(+)', '12(+)|0(+)', '12(+)|0(-)', '0(-)', '6(-)']
+
+    """
+    pos_indices = []
+    neg_indices = []
+
+    for i, peak in enumerate(peaks):
+        if "+" in peak.split(sep)[0]:
+            pos_indices.append(i)
+        else:
+            neg_indices.append(i)
+
+    pos_peaks = [peaks[i] for i in pos_indices]
+    neg_peaks = [peaks[i] for i in neg_indices]
+
+    def split_peak(peak):
+        out = []
+        for p in peak.split(sep):
+            out.extend([int(p[: p.find("(")]), 0 if "+" in p else 1])
+        return tuple(out)
+
+    return sorted(pos_peaks, key=split_peak) + sorted(neg_peaks, key=split_peak)
