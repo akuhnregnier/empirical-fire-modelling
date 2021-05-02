@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import from_levels_and_colors
 
+from . import configuration as plotting_configuration
 from .utils import get_sci_format
 
 
@@ -20,8 +21,8 @@ def disc_cube_plot(
     extend="neither",
     aux0_label="",
     aux1_label="",
-    aux0_c=np.array([150, 150, 150, 200], dtype=np.float64) / 255,
-    aux1_c=np.array([64, 64, 64, 200], dtype=np.float64) / 255,
+    aux0_c=plotting_configuration.aux0_c,
+    aux1_c=plotting_configuration.aux1_c,
     cbar=True,
     cbar_label="",
     cbar_orientation="vertical",

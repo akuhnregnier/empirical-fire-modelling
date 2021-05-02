@@ -38,8 +38,12 @@ from empirical_fire_modelling.configuration import Experiment
 from empirical_fire_modelling.data import get_endog_exog_mask, get_experiment_split_data
 from empirical_fire_modelling.logging_config import enable_logging
 from empirical_fire_modelling.model import get_model
-from empirical_fire_modelling.plotting import cube_plotting  # XXX temporary
-from empirical_fire_modelling.plotting import map_figure_saver
+from empirical_fire_modelling.plotting import configuration as plotting_configuration
+from empirical_fire_modelling.plotting import (
+    cube_plotting,
+    get_aux0_aux1_kwargs,
+    map_figure_saver,
+)
 from empirical_fire_modelling.utils import check_master_masks, tqdm
 
 mpl.rc_file(Path(__file__).resolve().parent / "matplotlibrc")
@@ -58,6 +62,200 @@ warnings.filterwarnings("ignore", ".*guessing contiguous bounds.*")
 warnings.filterwarnings(
     "ignore", 'Setting feature_perturbation = "tree_path_dependent".*'
 )
+
+
+def combined_plot(
+    peak_data_dicts, y_test, master_mask, cat_df, peak_color_df, experiment
+):
+    aux_kwargs = get_aux0_aux1_kwargs(y_test, master_mask)
+
+    fig, axes = plt.subplots(
+        2,
+        2,
+        figsize=(10.2, 5.2),
+        subplot_kw=dict(projection=ccrs.Robinson()),
+        dpi=300,
+    )
+
+    for ax, plot_data, title in zip(
+        axes.T.ravel(),
+        peak_data_dicts,
+        ascii_lowercase,
+    ):
+        short_feature = plot_data["short_feature"]
+        peak_keys = plot_data["peak_keys"]
+        imp_peaks = plot_data["imp_peaks"].astype("int")
+        exclude_inst = plot_data["exclude_inst"]
+
+        boundaries = np.arange(len(peak_keys) + 1) - 0.5
+
+        ungrouped_sorted_peak_keys = list(
+            map(
+                lambda p: tuple(p.split("|")),
+                sort_peaks(tuple(map(lambda ps: "|".join(ps), peak_keys))),
+            )
+        )
+
+        # Separate peak keys into the categories.
+        grouped_sorted_peak_keys = []
+        for category in ["dd_0", "dd_1", "dd_mix"]:
+            for peak_key in ungrouped_sorted_peak_keys:
+                if "|".join(peak_key) in cat_df[short_feature][category]:
+                    grouped_sorted_peak_keys.append(peak_key)
+        # Reverse to put the 'first' item on top of the colorbar.
+        grouped_sorted_peak_keys = grouped_sorted_peak_keys[::-1]
+        assert len(grouped_sorted_peak_keys) == len(ungrouped_sorted_peak_keys)
+
+        # Map from the old peak indices to the new sorted indices.
+        old_to_new = {}
+        for old in np.unique(get_unmasked(imp_peaks)):
+            old_to_new[old] = grouped_sorted_peak_keys.index(peak_keys[old])
+
+        sorted_imp_peaks = imp_peaks.copy()
+        for old, new in old_to_new.items():
+            sorted_imp_peaks[imp_peaks == old] = new
+
+        cmap, norm = from_levels_and_colors(
+            levels=[boundaries[0] - 2, boundaries[0] - 1] + list(boundaries),
+            colors=[
+                plotting_configuration.aux0_c,
+                plotting_configuration.aux1_c,
+            ]
+            + [
+                peak_color_df[short_feature]["|".join(peaks)]
+                for peaks in grouped_sorted_peak_keys
+            ],
+            extend="neither",
+        )
+
+        # Add aux*.
+        plot_imp_peaks = sorted_imp_peaks.copy()
+        min_data = np.min(plot_imp_peaks)
+        plot_imp_peaks[aux_kwargs["aux0"] & plot_imp_peaks.mask] = min_data - 2
+        plot_imp_peaks[aux_kwargs["aux1"] & plot_imp_peaks.mask] = min_data - 1
+
+        cube_plotting(
+            plot_imp_peaks,
+            title="",
+            colorbar_kwargs=False,
+            cmap=cmap,
+            norm=norm,
+            ax=ax,
+        )
+
+        if exclude_inst:
+            exc_string = f"(no current {short_feature})"
+        else:
+            exc_string = f"(with current {short_feature})"
+        ax.text(
+            0.5,
+            1.03,
+            f"({title}) {short_feature} {exc_string}",
+            transform=ax.transAxes,
+            ha="center",
+        )
+
+    fig.subplots_adjust(wspace=-0.045, hspace=0.1)
+
+    # Add the shared colorbars.
+
+    for i, feature in enumerate(["FAPAR", "DD"]):
+        cs = peak_color_df[feature].copy().dropna()
+
+        # Separate peak keys into the categories.
+        grouped_sorted_peak_keys = []
+        for category in ["dd_0", "dd_1", "dd_mix"]:
+            for peak_key in cs.index:
+                if peak_key in cat_df[feature][category]:
+                    grouped_sorted_peak_keys.append(peak_key)
+
+        cs = cs.reindex(grouped_sorted_peak_keys)
+
+        cmap = mpl.colors.ListedColormap(cs)
+        bounds = np.arange(0, len(cs) + 1)
+        norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
+
+        box = axes[-1, i].get_position()
+
+        height = 0.02
+        y0 = box.ymin - height - 0.034
+
+        width = 0.04 * len(cs)
+
+        x0 = (box.xmin + box.xmax) / 2 - width / 2
+
+        cb = mpl.colorbar.ColorbarBase(
+            fig.add_axes([x0, y0, width, height]),
+            cmap=cmap,
+            boundaries=bounds,
+            extend="neither",
+            ticks=get_centres(bounds),
+            spacing="uniform",
+            orientation="horizontal",
+            label=f"peak combination ({feature})",
+        )
+        cb.ax.set_xticklabels(cs.index, rotation=35)
+        cb.ax.xaxis.set_label_position("top")
+
+    # Do not re-draw colorbar including the aux0 and aux1 colours.
+    # Instead, add rectangles to indicate the meaning of the auxiliary levels.
+
+    aux_height = 0.030
+    aux_aspect = 1.15
+    aux_spacing = 0.04 * 0.2
+    aux_loc = (0.825, 0.04)
+
+    aux_width = aux_height * aux_aspect
+
+    label_kwargs = dict(
+        x=aux_loc[0] + aux_width + aux_spacing,
+        transform=fig.transFigure,
+        verticalalignment="center",
+    )
+
+    rect_kwargs = dict(
+        width=aux_width,
+        height=aux_height,
+        fill=True,
+        alpha=1,
+        zorder=1000,
+        transform=fig.transFigure,
+        figure=fig,
+    )
+
+    fig.patches.extend(
+        [
+            plt.Rectangle(
+                aux_loc,
+                color=plotting_configuration.aux0_c,
+                **rect_kwargs,
+            ),
+        ]
+    )
+    ax.text(y=aux_loc[1] + aux_height / 2, s=aux_kwargs["aux0_label"], **label_kwargs)
+
+    fig.patches.extend(
+        [
+            plt.Rectangle(
+                (aux_loc[0], aux_loc[1] - aux_height - aux_spacing),
+                color=plotting_configuration.aux1_c,
+                **rect_kwargs,
+            ),
+        ]
+    )
+    ax.text(
+        y=aux_loc[1] - aux_height / 2 - aux_spacing,
+        s=aux_kwargs["aux1_label"],
+        **label_kwargs,
+    )
+
+    # Save the combined figure.
+    map_figure_saver.save_figure(
+        fig,
+        f"{experiment.name}_normal_ba_peak_distr_max_shap_FAPAR__DD",
+        sub_directory=Path(f"{experiment.name}") / "shap_peaks",
+        dpi=350,
+    )
 
 
 if __name__ == "__main__":
@@ -92,27 +290,6 @@ if __name__ == "__main__":
     target_ba = get_masked_array(endog_data.values, master_mask)
     mean_ba = np.ma.mean(target_ba, axis=0)
 
-    # def param_iter():
-    #     for variable_factory in tqdm(
-    #         [variable.FAPAR, variable.DRY_DAY_PERIOD], desc="Feature"
-    #     ):
-    #         for exclude_inst in tqdm([False, True], desc="Exclude inst."):
-    #             yield exclude_inst, variable_factory
-
-    # weighted_plot_data = {}
-    # for exclude_inst, variable_factory in param_iter():
-    #     weighted_plot_data[(exclude_inst, variable_factory)] = get_max_positions(
-    #         X=X_test,
-    #         variables=[variable_factory[lag] for lag in chosen_lags],
-    #         shap_results=map_shap_results,
-    #         shap_measure="masked_max_shap_arrs",
-    #         mean_ba=mean_ba,
-    #         exclude_inst=exclude_inst,
-    #         ptp_threshold_factor=ptp_threshold_factor,
-    #         diff_threshold=diff_threshold,
-    #     )
-
-    # XXX Calculation start.
     pfts = Ext_ESA_CCI_Landcover_PFT()
     pfts.limit_months(start=PartialDateTime(2010, 1), end=PartialDateTime(2015, 1))
     pfts.regrid()
@@ -120,7 +297,7 @@ if __name__ == "__main__":
 
     max_month = 9
     close_figs = True
-    verbose = 2
+    verbose = 10
 
     filter_name = "normal"
     shap_results = map_shap_results
@@ -349,7 +526,6 @@ if __name__ == "__main__":
             )
         )
 
-    # XXX - needed?
     for plot_data in peak_data_dicts:
         short_feature = plot_data["short_feature"]
         exc_name = plot_data["exc_name"]
@@ -374,9 +550,7 @@ if __name__ == "__main__":
         # )
         # if close_figs:
         #     plt.close()
-    # XXX - needed?
 
-    # XXX - needed?
     for plot_data in peak_data_dicts:
         short_feature = plot_data["short_feature"]
         exc_name = plot_data["exc_name"]
@@ -405,9 +579,7 @@ if __name__ == "__main__":
         # )
         # if close_figs:
         #     plt.close()
-    # XXX - needed?
 
-    # XXX - needed?
     for plot_data in peak_data_dicts:
         short_feature = plot_data["short_feature"]
         exc_name = plot_data["exc_name"]
@@ -446,9 +618,7 @@ if __name__ == "__main__":
         # )
         # if close_figs:
         #     plt.close()
-    # XXX - needed?
 
-    # XXX - needed?
     for plot_data in peak_data_dicts:
         short_feature = plot_data["short_feature"]
         exc_name = plot_data["exc_name"]
@@ -473,9 +643,7 @@ if __name__ == "__main__":
         # )
         # if close_figs:
         #     plt.close()
-    # XXX - needed?
 
-    # XXX - needed?
     for plot_data in peak_data_dicts:
         short_feature = plot_data["short_feature"]
         exc_name = plot_data["exc_name"]
@@ -495,9 +663,7 @@ if __name__ == "__main__":
         # )
         # if close_figs:
         #     plt.close()
-    # XXX - needed?
 
-    # XXX - needed?
     for plot_data in peak_data_dicts:
         short_feature = plot_data["short_feature"]
         exc_name = plot_data["exc_name"]
@@ -535,9 +701,7 @@ if __name__ == "__main__":
         # )
         # if close_figs:
         #     plt.close()
-    # XXX - needed?
 
-    # XXX - needed?
     plot_data = list(islice(peak_data_dicts, 2, 3))[0]
     short_feature = plot_data["short_feature"]
     assert short_feature == "DD"
@@ -563,9 +727,7 @@ if __name__ == "__main__":
     plt.figure(figsize=(9, 5))
     plt.pcolormesh(sel)
     _ = plt.title(f"({short_feature}) Selection Overlap Template")
-    # XXX - needed?
 
-    # XXX - needed?
     def gen_cat_dict():
         return {
             # Associated with 0(+).
@@ -794,134 +956,6 @@ if __name__ == "__main__":
 
     fig.tight_layout(h_pad=0.3)
 
-    # XXX - needed?
-
-    # XXX Calculation end.
-
-    fig, axes = plt.subplots(
-        2,
-        2,
-        figsize=(10.2, 5.2),
-        subplot_kw=dict(projection=ccrs.Robinson()),
-        dpi=300,
-    )
-
-    for ax, plot_data, title in zip(
-        axes.T.ravel(),
-        peak_data_dicts,
-        ascii_lowercase,
-    ):
-        short_feature = plot_data["short_feature"]
-        peak_keys = plot_data["peak_keys"]
-        imp_peaks = plot_data["imp_peaks"].astype("int")
-        exclude_inst = plot_data["exclude_inst"]
-
-        boundaries = np.arange(len(peak_keys) + 1) - 0.5
-
-        ungrouped_sorted_peak_keys = list(
-            map(
-                lambda p: tuple(p.split("|")),
-                sort_peaks(tuple(map(lambda ps: "|".join(ps), peak_keys))),
-            )
-        )
-
-        # Separate peak keys into the categories.
-        grouped_sorted_peak_keys = []
-        for category in ["dd_0", "dd_1", "dd_mix"]:
-            for peak_key in ungrouped_sorted_peak_keys:
-                if "|".join(peak_key) in cat_df[short_feature][category]:
-                    grouped_sorted_peak_keys.append(peak_key)
-        # Reverse to put the 'first' item on top of the colorbar.
-        grouped_sorted_peak_keys = grouped_sorted_peak_keys[::-1]
-        assert len(grouped_sorted_peak_keys) == len(ungrouped_sorted_peak_keys)
-
-        # Map from the old peak indices to the new sorted indices.
-        old_to_new = {}
-        for old in np.unique(get_unmasked(imp_peaks)):
-            old_to_new[old] = grouped_sorted_peak_keys.index(peak_keys[old])
-
-        sorted_imp_peaks = imp_peaks.copy()
-        for old, new in old_to_new.items():
-            sorted_imp_peaks[imp_peaks == old] = new
-
-        cmap, norm = from_levels_and_colors(
-            levels=boundaries,
-            colors=[
-                peak_color_df[short_feature]["|".join(peaks)]
-                for peaks in grouped_sorted_peak_keys
-            ],
-            extend="neither",
-        )
-
-        # XXX temporary
-        cube_plotting(
-            sorted_imp_peaks,
-            title="",
-            coastline_kwargs={"linewidth": 0.3},
-            colorbar_kwargs=False,
-            cmap=cmap,
-            norm=norm,
-            ax=ax,
-        )
-
-        if exclude_inst:
-            exc_string = f"(no current {short_feature})"
-        else:
-            exc_string = f"(with current {short_feature})"
-        ax.text(
-            0.5,
-            1.03,
-            f"({title}) {short_feature} {exc_string}",
-            transform=ax.transAxes,
-            ha="center",
-        )
-
-    fig.subplots_adjust(wspace=-0.045, hspace=0.1)
-
-    # Add the shared colorbars.
-
-    for i, feature in enumerate(["FAPAR", "DD"]):
-        cs = peak_color_df[feature].copy().dropna()
-
-        # Separate peak keys into the categories.
-        grouped_sorted_peak_keys = []
-        for category in ["dd_0", "dd_1", "dd_mix"]:
-            for peak_key in cs.index:
-                if peak_key in cat_df[feature][category]:
-                    grouped_sorted_peak_keys.append(peak_key)
-
-        cs = cs.reindex(grouped_sorted_peak_keys)
-
-        cmap = mpl.colors.ListedColormap(cs)
-        bounds = np.arange(0, len(cs) + 1)
-        norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
-
-        box = axes[-1, i].get_position()
-
-        height = 0.02
-        y0 = box.ymin - height - 0.034
-
-        width = 0.04 * len(cs)
-
-        x0 = (box.xmin + box.xmax) / 2 - width / 2
-
-        cb = mpl.colorbar.ColorbarBase(
-            fig.add_axes([x0, y0, width, height]),
-            cmap=cmap,
-            boundaries=bounds,
-            extend="neither",
-            ticks=get_centres(bounds),
-            spacing="uniform",
-            orientation="horizontal",
-            label=f"peak combination ({feature})",
-        )
-        cb.ax.set_xticklabels(cs.index, rotation=35)
-        cb.ax.xaxis.set_label_position("top")
-
-    # Save the combined figure.
-    map_figure_saver.save_figure(
-        fig,
-        f"{experiment.name}_normal_ba_peak_distr_max_shap_FAPAR__DD",
-        sub_directory=Path(f"{experiment.name}") / "shap_peaks",
-        dpi=350,
+    combined_plot(
+        peak_data_dicts, y_test, master_mask, cat_df, peak_color_df, experiment
     )
