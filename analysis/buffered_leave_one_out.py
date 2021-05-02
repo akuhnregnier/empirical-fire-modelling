@@ -79,7 +79,7 @@ def fit_buffered_loo_sample(
 
 if __name__ == "__main__":
     # For 40 estimators, ~25 minutes per fit operation.
-    cx1_kwargs = dict(walltime="24:00:00", ncpus=1, mem="3GB")
+    cx1_kwargs = dict(walltime="24:00:00", ncpus=1, mem="5GB")
     experiments = list(Experiment)
 
     max_rad = 50
