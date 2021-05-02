@@ -120,14 +120,15 @@ def check_local(func, args, kwargs, backend="threads", n_cores=1, verbose=False)
     chosen_executor = {"threads": ThreadPoolExecutor, "processes": ProcessPoolExecutor}[
         backend
     ]
-    futures = []
+    all_single_args = list(zip(*args))
 
     # Check which calls are not yet cached. This relies on functions implementing
     # the `cache_check` keyword argument if needed.
     checked = dict(present=[], uncached=[])
     uncached_args = []
     with chosen_executor(max_workers=n_cores) as executor:
-        for single_args in zip(*args):
+        futures = []
+        for single_args in all_single_args:
             futures.append(
                 executor.submit(check_in_store, func, *single_args, **kwargs)
             )
@@ -143,7 +144,7 @@ def check_local(func, args, kwargs, backend="threads", n_cores=1, verbose=False)
             future.result()
 
         # Collect results in order.
-        for single_args, future in zip(zip(*args), futures):
+        for single_args, future in zip(all_single_args, futures):
             if future.result() == CACHED:
                 checked["present"].append((single_args, kwargs))
             else:
@@ -158,8 +159,8 @@ def run_local(func, args, kwargs, backend="threads", n_cores=1, verbose=False):
         backend
     ]
     out = []
-    futures = []
     with chosen_executor(max_workers=n_cores) as executor:
+        futures = []
         for single_args in zip(*args):
             futures.append(executor.submit(func, *single_args, **kwargs))
 
