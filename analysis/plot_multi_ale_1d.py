@@ -15,7 +15,10 @@ from empirical_fire_modelling import variable
 from empirical_fire_modelling.analysis.ale import multi_ale_1d
 from empirical_fire_modelling.configuration import Experiment
 from empirical_fire_modelling.cx1 import run
-from empirical_fire_modelling.data import get_experiment_split_data
+from empirical_fire_modelling.data import (
+    get_experiment_split_data,
+    get_frac_train_nr_samples,
+)
 from empirical_fire_modelling.logging_config import enable_logging
 from empirical_fire_modelling.model import get_model
 from empirical_fire_modelling.plotting import figure_saver
@@ -82,7 +85,7 @@ def plot_multi_ale(experiment, verbose=False, **kwargs):
             ax=ax,
             verbose=verbose,
             monte_carlo_rep=100,
-            monte_carlo_ratio=0.1,
+            monte_carlo_ratio=get_frac_train_nr_samples(Experiment["15VEG_FAPAR"], 0.1),
         )
         ax.set_title(title)
         ax.set_xlabel(f"{feature_factory} ({variable.lags[feature_factory]})")

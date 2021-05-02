@@ -31,6 +31,7 @@ __all__ = (
     "get_first_cube_datetimes",
     "get_map_data",
     "get_split_data",
+    "get_frac_train_nr_samples",
 )
 
 
@@ -916,6 +917,7 @@ def get_split_data(
 
 
 @cache(dependencies=(get_split_data, get_data, _basis_func))
+@mark_dependency
 def get_experiment_split_data(experiment):
     endog_data, exog_data = get_endog_exog_mask(experiment=experiment)[:2]
     return get_split_data(exog_data, endog_data)
@@ -948,3 +950,10 @@ def get_first_cube_datetimes(datasets):
         for i in range(datasets[0].cubes[0].shape[0])
     ]
     return datetimes
+
+
+@cache(dependencies=(get_experiment_split_data, get_split_data, get_data, _basis_func))
+def get_frac_train_nr_samples(experiment, fraction):
+    """Return the number of samples corresponding to a given fraction of the train set."""
+    X_train = get_experiment_split_data(experiment)[0]
+    return round(fraction * X_train.shape[0])
