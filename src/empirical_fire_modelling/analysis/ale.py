@@ -311,6 +311,7 @@ def multi_ale_1d(
     ) = multi_ale_plot_1d(
         model=model,
         train_set=X_train,
+        bins=20,
         features=features,
         train_response=train_response,
         monte_carlo=monte_carlo,
@@ -346,7 +347,6 @@ def single_ax_multi_ale_1d(
     ax,
     feature_data,
     feature,
-    bins=20,
     xlabel=None,
     ylabel=None,
     title=None,
@@ -371,7 +371,7 @@ def single_ax_multi_ale_1d(
                 process_proxy((model,), (get_model_predict,))[0],
                 X_train,
                 feature,
-                bins=bins,
+                bins=20,
             )
 
         quantile_list.append(quantiles)
@@ -416,7 +416,6 @@ def multi_model_ale_1d(
     experiment_data,
     experiment_plot_kwargs,
     lags=(0, 1, 3, 6, 9),
-    bins=20,
     title=None,
     verbose=False,
     figure_saver=None,
@@ -484,7 +483,6 @@ def multi_model_ale_1d(
             ax,
             feature_data=feature_data,
             feature=feature,
-            bins=bins,
             xlabel=str(feature),
             verbose=verbose,
         )
