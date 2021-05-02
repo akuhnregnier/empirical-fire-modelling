@@ -13,7 +13,10 @@ from empirical_fire_modelling import variable
 from empirical_fire_modelling.analysis.ale import save_ale_1d
 from empirical_fire_modelling.configuration import Experiment
 from empirical_fire_modelling.cx1 import run
-from empirical_fire_modelling.data import get_experiment_split_data
+from empirical_fire_modelling.data import (
+    get_experiment_split_data,
+    get_frac_train_nr_samples,
+)
 from empirical_fire_modelling.logging_config import enable_logging
 from empirical_fire_modelling.model import get_model
 from empirical_fire_modelling.plotting import figure_saver
@@ -38,8 +41,6 @@ warnings.filterwarnings(
 
 
 def plot_single_1d_ale(experiment, column, ax, verbose=False):
-    exp_figure_saver = figure_saver(sub_directory=experiment.name)
-
     # Operate on cached data only.
     get_experiment_split_data.check_in_store(experiment)
     X_train, X_test, y_train, y_test = get_experiment_split_data(experiment)
@@ -53,11 +54,10 @@ def plot_single_1d_ale(experiment, column, ax, verbose=False):
         X_train,
         column,
         train_response=y_train,
-        figure_saver=exp_figure_saver,
+        figure_saver=None,
         verbose=verbose,
-        # 200.
-        monte_carlo_rep=3,
-        monte_carlo_ratio=0.1,
+        monte_carlo_rep=100,
+        monte_carlo_ratio=get_frac_train_nr_samples(Experiment["15VEG_FAPAR"], 0.1),
         ax=ax,
     )
 
@@ -74,6 +74,8 @@ def plot_clim_mon_ale_comp(*args, verbose=False, **kwargs):
         plot_spec.items(), desc="ALE plots", disable=not verbose
     ):
         plot_single_1d_ale(experiment, column, ax=ax, verbose=verbose)
+
+    figure_saver.save_figure(fig, "15VEG_FAPAR_15VEG_FAPAR_MON_ALE_comp")
 
 
 if __name__ == "__main__":
