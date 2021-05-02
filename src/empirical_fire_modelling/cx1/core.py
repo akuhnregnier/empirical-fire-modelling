@@ -7,6 +7,7 @@ import string
 import sys
 from argparse import ArgumentParser
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
+from enum import Enum
 from functools import partial
 from pathlib import Path
 from pprint import pformat, pprint
@@ -30,6 +31,10 @@ __all__ = (
 
 template_dir = Path(__file__).resolve().parent / "templates"
 
+# This syntax (using 2 lines) is required for multiprocessing (as it uses pickling).
+Cached = Enum("Cached", ["CACHED", "UNCACHED"])
+CACHED, UNCACHED = Cached
+
 
 def expand_experiment_strs(experiments):
     """Expand the special cases and extract Experiment objects."""
@@ -43,6 +48,22 @@ def expand_experiment_strs(experiments):
             if exp not in chosen_experiments:
                 chosen_experiments.append(Experiment[exp])
     return tuple(chosen_experiments)
+
+
+def add_local_multi_args(parser):
+    parser.add_argument(
+        "-n",
+        "--n-cores",
+        default=1,
+        type=int,
+        help="number of cores to use in parallel (default: single threaded)",
+    )
+    mode_group = parser.add_mutually_exclusive_group(required=False)
+    mode_group.add_argument(
+        "--threads", action="store_true", help="use threads (default)"
+    )
+    mode_group.add_argument("--processes", action="store_true", help="use processes")
+    return mode_group
 
 
 def get_parsers():
@@ -72,33 +93,73 @@ def get_parsers():
         help="execution target", dest="dest", required=True
     )
     local_parser = subparsers.add_parser("local", help="run functions locally")
-    local_parser.add_argument(
-        "-n",
-        "--n-cores",
-        default=1,
-        type=int,
-        help="number of cores to use in parallel (default: single threaded)",
-    )
-    mode_group = local_parser.add_mutually_exclusive_group(required=False)
-    mode_group.add_argument(
-        "--threads", action="store_true", help="use threads (default)"
-    )
-    mode_group.add_argument("--processes", action="store_true", help="use processes")
+    local_mode_group = add_local_multi_args(local_parser)
 
     cx1_parser = subparsers.add_parser("cx1", help="run functions on CX1 using PBS")
 
     check_parser = subparsers.add_parser(
         "check", help="locally check which calls are cached"
     )
+    # Enable multithreaded / multiprocessed checking.
+    check_mode_group = add_local_multi_args(check_parser)
 
     return dict(
         parser=parser,
         subparsers=subparsers,
         local_parser=local_parser,
-        mode_group=mode_group,
+        local_mode_group=local_mode_group,
+        check_mode_group=check_mode_group,
         cx1_parser=cx1_parser,
         check_parser=check_parser,
     )
+
+
+def check_in_store(func, *args, **kwargs):
+    try:
+        if hasattr(func, "check_in_store"):
+            func.check_in_store(*args, **kwargs)
+        else:
+            func(*args, cache_check=True, **kwargs)
+    except NotCachedError:
+        return UNCACHED
+    return CACHED
+
+
+def check_local(func, args, kwargs, backend="threads", n_cores=1, verbose=False):
+    chosen_executor = {"threads": ThreadPoolExecutor, "processes": ProcessPoolExecutor}[
+        backend
+    ]
+    futures = []
+
+    # Check which calls are not yet cached. This relies on functions implementing
+    # the `cache_check` keyword argument if needed.
+    checked = dict(present=[], uncached=[])
+    uncached_args = []
+    with chosen_executor(max_workers=n_cores) as executor:
+        for single_args in zip(*args):
+            futures.append(
+                executor.submit(check_in_store, func, *single_args, **kwargs)
+            )
+
+        # Progress bar (out of order).
+        for future in tqdm(
+            as_completed(futures),
+            desc="Checking",
+            total=len(futures),
+            disable=not verbose,
+        ):
+            # Ensure exceptions are caught here already.
+            future.result()
+
+        # Collect results in order.
+        for single_args, future in zip(zip(*args), futures):
+            if future.result() == CACHED:
+                checked["present"].append((single_args, kwargs))
+            else:
+                checked["uncached"].append((single_args, kwargs))
+                uncached_args.append(single_args)
+
+    return checked, uncached_args
 
 
 def run_local(func, args, kwargs, backend="threads", n_cores=1, verbose=False):
@@ -323,26 +384,14 @@ def run(
         args = tuple(args)
 
     if cmd_args.dest == "check" or cmd_args.uncached:
-
-        def check_in_store(func, *args, **kwargs):
-            if hasattr(func, "check_in_store"):
-                return func.check_in_store(*args, **kwargs)
-            else:
-                return func(*args, cache_check=True, **kwargs)
-
-        # Check which calls are not yet cached. This relies on functions implementing
-        # the `cache_check` keyword argument.
-        checked = dict(present=[], uncached=[])
-        uncached_args = []
-        for single_args in tqdm(
-            zip(*args), desc="Checking", total=len(args[0]), disable=not verbose
-        ):
-            try:
-                check_in_store(func, *single_args, **kwargs)
-                checked["present"].append((single_args, kwargs))
-            except NotCachedError:
-                checked["uncached"].append((single_args, kwargs))
-                uncached_args.append(single_args)
+        checked, uncached_args = check_local(
+            func=func,
+            args=args,
+            kwargs=kwargs,
+            backend=("processes" if cmd_args.processes else "threads"),
+            n_cores=cmd_args.n_cores,
+            verbose=verbose,
+        )
 
         pprint({key: len(val) for key, val in checked.items()})
 
