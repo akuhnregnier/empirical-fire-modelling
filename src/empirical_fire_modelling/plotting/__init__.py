@@ -14,4 +14,9 @@ from .configuration import (
 )
 from .core import *
 from .spec_cube_plot import disc_cube_plot
-from .utils import format_label_string_with_exponent, get_sci_format
+from .utils import (
+    format_label_string_with_exponent,
+    get_float_format,
+    get_sci_format,
+    update_label_with_exp,
+)

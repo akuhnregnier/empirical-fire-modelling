@@ -49,7 +49,48 @@ def get_sci_format(
     return fmt
 
 
-def _update_label(old, exponent_text):
+def get_float_format(
+    factor=1,
+    ndigits=1,
+    zero_thres=1e-15,
+    zero_str="0",
+    atol=1e-8,
+    atol_exceeded="raise",
+):
+    """Scientific formatter.
+
+    Args:
+        factor (float): Factor to divide each displayed label by.
+        ndigits (int): Number of digits.
+        zero_thres (float): Threshold for 0.
+        zero_str (str): If the number if within `zero_thres` of 0, use this instead.
+        atol (float): Absolute tolerance to detect incorrect labels.
+        atol_exceeded ({'raise', 'adjust'}): If 'raise', raise ValueError if the
+            tolernace is exceeded by a formatted label. If 'adjust', use `ndigits=10`
+            for this value instead.
+
+    """
+
+    @FuncFormatter
+    def fmt(x, pos):
+        x /= factor
+        if abs(x) < zero_thres:
+            return zero_str
+        rounded = round(x, ndigits=ndigits)
+        if abs(rounded - x) > atol:
+            if atol_exceeded == "adjust":
+                # Use a higher number of ndigits.
+                rounded = round(x, ndigits=10)
+            else:
+                raise ValueError(
+                    f"Discrepancy too large - after rounding: {rounded} vs. original: {x}"
+                )
+        return format(rounded, f"0.{ndigits}f")
+
+    return fmt
+
+
+def update_label_with_exp(old, exponent_text):
     """Update a label using a given exponent.
 
     Adapted from: http://greg-ashton.physics.monash.edu/setting-nice-axes-labels-in-matplotlib.html
@@ -99,4 +140,4 @@ def format_label_string_with_exponent(ax, axis="both"):
         exponent_text = ax.get_offset_text().get_text()
         label = ax.get_label().get_text()
         ax.offsetText.set_visible(False)
-        ax.set_label_text(_update_label(label, exponent_text))
+        ax.set_label_text(update_label_with_exp(label, exponent_text))

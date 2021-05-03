@@ -17,7 +17,7 @@ from wildfires.utils import shorten_features
 
 from .. import variable
 from ..cache import cache, process_proxy
-from ..plotting import get_sci_format
+from ..plotting import get_float_format, get_sci_format, update_label_with_exp
 from ..utils import column_check, tqdm
 
 # Transparently cache the ALE computations.
@@ -351,6 +351,9 @@ def single_ax_multi_ale_1d(
     ylabel=None,
     title=None,
     verbose=False,
+    x_ndigits=2,
+    x_factor=1,
+    x_rotation=18,
 ):
     quantile_list = []
     ale_list = []
@@ -397,15 +400,17 @@ def single_ax_multi_ale_1d(
         ax.set_xticks(mod_quantiles[::2])
         ax.set_xticklabels(
             map(
-                lambda x: get_sci_format(ndigits=1, atol=np.inf)(x, None),
+                lambda x: get_float_format(
+                    ndigits=x_ndigits, factor=x_factor, atol=np.inf
+                )(x, None),
                 final_quantiles[::2],
             )
         )
-        ax.xaxis.set_tick_params(rotation=18)
+        ax.xaxis.set_tick_params(rotation=x_rotation)
 
         ax.grid(True)
 
-        ax.set_xlabel(xlabel)
+        ax.set_xlabel(xlabel + f"({x_factor})")
         ax.set_ylabel(ylabel)
 
     ax.set_title(title)
@@ -424,7 +429,11 @@ def multi_model_ale_1d(
     fig=None,
     axes=None,
     legend=True,
+    x_ndigits=2,
+    x_factor=1,
+    x_rotation=18,
     y_ndigits=1,
+    y_factor=1e-3,
 ):
     plotted_experiments = set()
 
@@ -485,15 +494,18 @@ def multi_model_ale_1d(
             feature=feature,
             xlabel=str(feature),
             verbose=verbose,
+            x_ndigits=x_ndigits,
+            x_factor=x_factor,
+            x_rotation=x_rotation,
         )
 
     for ax in axes.flatten()[:n_plots]:
         ax.yaxis.set_major_formatter(
-            get_sci_format(ndigits=y_ndigits, atol_exceeded="adjust")
+            get_float_format(factor=y_factor, ndigits=y_ndigits, atol_exceeded="adjust")
         )
 
     for row_axes in axes:
-        row_axes[0].set_ylabel("ALE (BA)")
+        row_axes[0].set_ylabel(update_label_with_exp("ALE (BA)", str(y_factor)))
 
     fig.tight_layout()
 

@@ -93,6 +93,14 @@ def multi_model_ale_plot(*args, verbose=False, **kwargs):
             elif plot_kwargs["label"].startswith("CURRDD_"):
                 plot_kwargs["label"] = "CURRDD_X"
 
+        x_factor_exp = 0
+        x_factor = 10 ** x_factor_exp
+        # x_factor_str = rf"$10^{{{x_factor_exp}}}$"
+
+        y_factor_exp = -4
+        y_factor = 10 ** y_factor_exp
+        y_factor_str = rf"$10^{{{y_factor_exp}}}$"
+
         multi_model_ale_1d(
             comp_vars[0],
             plotting_experiment_data,
@@ -102,7 +110,11 @@ def multi_model_ale_plot(*args, verbose=False, **kwargs):
             fig=fig,
             axes=axes[:, 0:1],
             lags=lags,
-            y_ndigits=0 if comp_vars[0] is variable.FAPAR else 1,
+            x_ndigits=2,
+            x_factor=x_factor,
+            x_rotation=0,
+            y_ndigits=0,
+            y_factor=y_factor,
         )
         multi_model_ale_1d(
             comp_vars[1],
@@ -113,7 +125,11 @@ def multi_model_ale_plot(*args, verbose=False, **kwargs):
             fig=fig,
             axes=axes[:, 1:2],
             lags=lags,
-            y_ndigits=0 if comp_vars[1] is variable.LAI else 1,
+            x_ndigits=2,
+            x_factor=x_factor,
+            x_rotation=0,
+            y_ndigits=0,
+            y_factor=y_factor,
         )
 
         for ax in axes[:, 1]:
@@ -124,11 +140,12 @@ def multi_model_ale_plot(*args, verbose=False, **kwargs):
                 lag_m = f" ({lag_match.group(1)})"
             else:
                 lag_m = ""
-            ax.set_ylabel(f"ALE{lag_m} (BA)")
+            ax.set_ylabel(f"ALE{lag_m} ({y_factor_str} BA)")
         for ax in axes.flatten():
             ax.set_xlabel("")
 
         for ax, var in zip(axes[-1], comp_vars):
+            assert x_factor_exp == 0
             ax.set_xlabel(f"{var} ({variable.units[var]})")
 
         for ax, title in zip(axes.flatten(), ascii_lowercase):
