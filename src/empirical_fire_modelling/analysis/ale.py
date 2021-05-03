@@ -2,23 +2,48 @@
 """ALE plots."""
 import math
 from collections import defaultdict
+from copy import deepcopy
 from operator import attrgetter
 
-import alepython.ale
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
-from alepython import ale_plot, multi_ale_plot_1d
+import sklearn.base
 from joblib import parallel_backend
 from matplotlib.colors import SymLogNorm
 from matplotlib.lines import Line2D
+from wildfires.cache.proxy_backend import HashProxy
 from wildfires.qstat import get_ncpus
 from wildfires.utils import shorten_features
 
 from .. import variable
-from ..cache import cache, process_proxy
+from ..cache import cache, get_proxied_estimator, process_proxy
 from ..plotting import get_float_format, get_sci_format, update_label_with_exp
 from ..utils import column_check, tqdm
+
+
+@cache
+def cached_clone(estimator, safe=None):
+    """Adapted from sklearn.base.clone."""
+    estimator_params = estimator.get_params(deep=False)
+    new_estimator = estimator.__class__(**deepcopy(estimator_params))
+    new_params = new_estimator.get_params(deep=False)
+    for name in estimator_params:
+        param1 = estimator_params[name]
+        param2 = new_params[name]
+        assert param1 is param2
+    return new_estimator
+
+
+# Transparently cache estimator cloning.
+# sklearn.base.clone = cache(sklearn.base.clone)
+sklearn.base.clone = cached_clone
+
+
+# Import after the line above in order for the `clone` caching to take effect within
+# the module.
+import alepython.ale  # isort:skip
+
 
 # Transparently cache the ALE computations.
 alepython.ale.first_order_ale_quant = cache(alepython.ale.first_order_ale_quant)
@@ -26,6 +51,33 @@ alepython.ale.second_order_ale_quant = cache(
     alepython.ale.second_order_ale_quant, ignore=["n_jobs"]
 )
 alepython.ale._mc_replicas = cache(alepython.ale._mc_replicas, ignore=["verbose"])
+
+# Make use of proxied access to `predict` implicitly.
+_orig_ale_plot = alepython.ale.ale_plot
+
+
+def proxied_ale_plot(**kwargs):
+    kwargs["model"] = get_proxied_estimator(kwargs["model"])
+    return _orig_ale_plot(**kwargs)
+
+
+alepython.ale.ale_plot = proxied_ale_plot
+
+
+# Implicitly handle getting array data from Series.
+orig_asarray = np.asarray
+
+
+def lazy_series_asarray(*args, **kwargs):
+    if len(args) == 1 and not kwargs and isinstance(args[0], HashProxy):
+        # Handle the specific case of a single lazy input argument to avoid
+        # loading it from disk for as long as possible.
+        return process_proxy((args[0],), (orig_asarray,))[0]
+
+    return orig_asarray(*args, **kwargs)
+
+
+np.asarray = lazy_series_asarray
 
 
 def save_ale_1d(
@@ -51,10 +103,10 @@ def save_ale_1d(
     if ax is None:
         ax = plt.axes()
 
-    out = ale_plot(
-        model,
-        X_train,
-        column,
+    out = alepython.ale.ale_plot(
+        model=model,
+        train_set=X_train,
+        features=column,
         bins=20,
         train_response=train_response,
         monte_carlo=monte_carlo,
@@ -170,10 +222,10 @@ def save_ale_2d(
         )
 
     with parallel_backend("threading", n_jobs=n_jobs):
-        fig, axes, (quantiles_list, ale, samples) = ale_plot(
-            model,
-            train_set,
-            features,
+        fig, axes, (quantiles_list, ale, samples) = alepython.ale.ale_plot(
+            model=model,
+            train_set=train_set,
+            features=features,
             bins=20,
             fig=fig,
             ax=ax[0],
@@ -343,7 +395,7 @@ def multi_ale_1d(
         quantile_list,
         ale_list,
         mc_data_list,
-    ) = multi_ale_plot_1d(
+    ) = alepython.ale.multi_ale_plot_1d(
         model=model,
         train_set=X_train,
         bins=20,

@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 """Model training."""
-
 from functools import partial
 
 from joblib import parallel_backend

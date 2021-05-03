@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Comparison of 1D ALE plots for climatological and monthly analyses."""
+import gc
 import logging
 import sys
 import warnings
@@ -74,6 +75,7 @@ def plot_clim_mon_ale_comp(*args, verbose=False, **kwargs):
         plot_spec.items(), desc="ALE plots", disable=not verbose
     ):
         plot_single_1d_ale(experiment, column, ax=ax, verbose=verbose)
+        gc.collect()
 
     figure_saver.save_figure(fig, "15VEG_FAPAR_15VEG_FAPAR_MON_ALE_comp")
 

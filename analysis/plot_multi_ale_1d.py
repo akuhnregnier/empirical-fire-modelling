@@ -10,6 +10,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 from loguru import logger as loguru_logger
+from wildfires.utils import shorten_features
 
 from empirical_fire_modelling import variable
 from empirical_fire_modelling.analysis.ale import multi_ale_1d
