@@ -76,6 +76,9 @@ def plot_obs_pred_comp(experiment, **kwargs):
             cbar_label="Ob. - Pr.",
             **get_aux0_aux1_kwargs(y_val, master_mask),
             loc=(0.83, 0.14),
+            height=0.055,
+            aspect=1,
+            spacing=0.06 * 0.2,
         )
 
 
