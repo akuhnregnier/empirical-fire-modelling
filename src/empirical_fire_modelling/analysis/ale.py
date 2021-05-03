@@ -94,6 +94,11 @@ def save_ale_2d(
     figure_saver=None,
     plot_samples=True,
     figsize=(6.15, 3.17),
+    ale_factor_exp=0,
+    x_factor_exp=0,
+    x_ndigits=2,
+    y_factor_exp=0,
+    y_ndigits=2,
     *,
     experiment,
 ):
@@ -106,13 +111,13 @@ def save_ale_2d(
     x_coords["ALE end"] = 0.42
     x_coords["ALE cbar start"] = x_coords["ALE end"] + 0.01
     x_coords["ALE cbar end"] = x_coords["ALE cbar start"] + cbar_width
-    x_coords["Samples start"] = 0.69
+    x_coords["Samples start"] = 0.6
     x_coords["Samples end"] = 0.9
     x_coords["Samples cbar start"] = x_coords["Samples end"] + 0.01
     x_coords["Samples cbar end"] = x_coords["Samples cbar start"] + cbar_width
 
     y_bottom = {
-        "Samples": 1 / 3,  # Samples plot and cbar bottom.
+        "Samples": 0.22,  # Samples plot and cbar bottom.
     }
     cbar_height = {
         "ALE": 0.6,
@@ -178,9 +183,13 @@ def save_ale_2d(
                 "kind": "grid",
                 "cmap": "inferno",
                 "colorbar_kwargs": dict(
-                    format=get_sci_format(ndigits=0),
+                    format=get_float_format(factor=10 ** ale_factor_exp, ndigits=0),
                     cax=cax[0],
-                    label="ALE (BA)",
+                    label=(
+                        f"ALE (BA)"
+                        if ale_factor_exp == 0
+                        else f"ALE ($10^{{{ale_factor_exp}}}$ BA)"
+                    ),
                 ),
             },
             return_data=True,
@@ -193,15 +202,31 @@ def save_ale_2d(
             axes[ax_key].xaxis.set_tick_params(rotation=50)
 
     axes["ale"].set_aspect("equal")
-    axes["ale"].set_xlabel(f"{features[0]} ({variable.units[features[0].parent]})")
-    axes["ale"].set_ylabel(f"{features[1]} ({variable.units[features[1].parent]})")
     axes["ale"].set_title("")
 
+    x_factor = 10 ** x_factor_exp
+    y_factor = 10 ** y_factor_exp
+
     axes["ale"].xaxis.set_ticklabels(
-        np.vectorize(get_sci_format(ndigits=1, atol=np.inf))(quantiles_list[0])
+        np.vectorize(get_float_format(factor=x_factor, ndigits=x_ndigits, atol=np.inf))(
+            quantiles_list[0]
+        )
     )
     axes["ale"].yaxis.set_ticklabels(
-        np.vectorize(get_sci_format(ndigits=1, atol=np.inf))(quantiles_list[1])
+        np.vectorize(get_float_format(factor=y_factor, ndigits=y_ndigits, atol=np.inf))(
+            quantiles_list[1]
+        )
+    )
+
+    axes["ale"].set_xlabel(
+        f"{features[0]} ({variable.units[features[0].parent]})"
+        if x_factor_exp == 0
+        else f"{features[0]} ($10^{{{x_factor_exp}}}$ {variable.units[features[0].parent]})"
+    )
+    axes["ale"].set_ylabel(
+        f"{features[1]} ({variable.units[features[1].parent]})"
+        if y_factor_exp == 0
+        else f"{features[1]} ($10^{{{y_factor_exp}}}$ {variable.units[features[1].parent]})"
     )
 
     for tick in axes["ale"].xaxis.get_major_ticks():
@@ -210,14 +235,16 @@ def save_ale_2d(
     if plot_samples:
         # Plotting samples.
         mod_quantiles_list = []
-        for axis, quantiles in zip(("x", "y"), quantiles_list):
+        for axis, quantiles, factor, ndigits in zip(
+            ("x", "y"), quantiles_list, (x_factor, y_factor), (x_ndigits, y_ndigits)
+        ):
             inds = np.arange(len(quantiles))
             mod_quantiles_list.append(inds)
             ax[1].set(**{f"{axis}ticks": inds})
             ax[1].set(
                 **{
                     f"{axis}ticklabels": np.vectorize(
-                        get_sci_format(ndigits=1, atol=np.inf)
+                        get_float_format(factor=factor, ndigits=ndigits, atol=np.inf)
                     )(quantiles)
                 }
             )
@@ -231,7 +258,7 @@ def save_ale_2d(
         @ticker.FuncFormatter
         def integer_sci_format(x, pos):
             if np.log10(x).is_integer():
-                return get_sci_format(ndigits=0)(x, pos)
+                return get_sci_format(ndigits=0, trim_leading_one=True)(x, pos)
             return ""
 
         fig.colorbar(
@@ -244,8 +271,16 @@ def save_ale_2d(
         for tick in ax[1].xaxis.get_major_ticks():
             tick.label1.set_horizontalalignment("right")
         ax[1].set_aspect("equal")
-        ax[1].set_xlabel(f"{features[0]} ({variable.units[features[0].parent]})")
-        ax[1].set_ylabel(f"{features[1]} ({variable.units[features[1].parent]})")
+        ax[1].set_xlabel(
+            f"{features[0]} ({variable.units[features[0].parent]})"
+            if x_factor_exp == 0
+            else f"{features[0]} ($10^{{{x_factor_exp}}}$ {variable.units[features[0].parent]})"
+        )
+        ax[1].set_ylabel(
+            f"{features[1]} ({variable.units[features[1].parent]})"
+            if y_factor_exp == 0
+            else f"{features[1]} ($10^{{{y_factor_exp}}}$ {variable.units[features[1].parent]})"
+        )
 
         fig.set_constrained_layout_pads(
             w_pad=0.000, h_pad=0.000, hspace=0.0, wspace=0.015

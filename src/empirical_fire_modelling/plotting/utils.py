@@ -52,7 +52,7 @@ def get_sci_format(
         else:
             mantissa = format(rounded, f".{ndigits}f")
 
-        if abs(float(mantissa) - 1) < float_thres:
+        if trim_leading_one and abs(float(mantissa) - 1) < float_thres:
             # Trim the leading '1 x'.
             return rf"$10^{{{exponent}}}$"
         return rf"${mantissa} \times 10^{{{exponent}}}$"

@@ -3,8 +3,8 @@
 import numpy as np
 import seaborn as sns
 
+from .. import variable
 from ..configuration import Experiment, main_experiments
-from ..variable import lags
 
 # Colors.
 experiment_colors = sns.color_palette("Set2")
@@ -25,7 +25,7 @@ experiment_color_dict = {
 
 # 9 colors used to differentiate varying the lags throughout.
 lag_colors = sns.color_palette("Set1", desat=0.85)
-lag_color_dict = {lag: color for lag, color in zip(lags, lag_colors)}
+lag_color_dict = {lag: color for lag, color in zip(variable.lags, lag_colors)}
 
 # Markers.
 experiment_markers = ["<", "o", ">", "x"]
@@ -79,3 +79,14 @@ experiment_plot_kwargs = {
 
 aux0_c = np.array([150, 150, 150, 200], dtype=np.float64) / 255
 aux1_c = np.array([64, 64, 64, 200], dtype=np.float64) / 255
+
+# ALE plotting parameters.
+ale_factor_exps = {
+    (variable.DRY_DAY_PERIOD, variable.FAPAR): -2,
+    (variable.FAPAR, variable.FAPAR): -2,
+}
+ndigits = {
+    variable.FAPAR: 2,
+    variable.DRY_DAY_PERIOD: 1,
+}
+factor_exps = {variable.FAPAR: 0, variable.DRY_DAY_PERIOD: 0}

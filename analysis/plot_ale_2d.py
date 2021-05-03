@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 from loguru import logger as loguru_logger
 from wildfires.qstat import get_ncpus
 
+import empirical_fire_modelling.plotting.configuration as plotting_configuration
 from empirical_fire_modelling import variable
 from empirical_fire_modelling.analysis.ale import save_ale_2d
 from empirical_fire_modelling.configuration import Experiment
@@ -101,6 +102,13 @@ def plot_2d_ale(experiment, single=False, nargs=None, verbose=False, **kwargs):
             include_first_order=True,
             plot_samples=plot_samples,
             figure_saver=exp_figure_saver,
+            ale_factor_exp=plotting_configuration.ale_factor_exps.get(
+                (columns[0].parent, columns[1].parent), -2
+            ),
+            x_factor_exp=plotting_configuration.factor_exps.get(columns[0].parent, 0),
+            x_ndigits=plotting_configuration.ndigits.get(columns[0].parent, 2),
+            y_factor_exp=plotting_configuration.factor_exps.get(columns[1].parent, 0),
+            y_ndigits=plotting_configuration.ndigits.get(columns[1].parent, 2),
         )
         plt.close("all")
 
