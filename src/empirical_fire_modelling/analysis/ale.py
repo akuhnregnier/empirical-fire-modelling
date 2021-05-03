@@ -41,8 +41,18 @@ def cached_clone(estimator, safe=True):
     return new_estimator
 
 
+def delegate_clone(estimator, safe=True):
+    from wildfires.dask_cx1 import DaskRandomForestRegressor
+
+    if isinstance(estimator, HashProxy) or isinstance(
+        estimator, DaskRandomForestRegressor
+    ):
+        return cached_clone(estimator, safe=safe)
+    return orig_clone(estimator, safe=safe)
+
+
 # Transparently cache estimator cloning.
-sklearn.base.clone = cached_clone
+sklearn.base.clone = delegate_clone
 
 
 # Import after the line above in order for the `clone` caching to take effect within
