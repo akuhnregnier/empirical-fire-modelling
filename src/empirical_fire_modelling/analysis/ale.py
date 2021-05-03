@@ -23,7 +23,7 @@ from ..utils import column_check, tqdm
 
 
 @cache
-def cached_clone(estimator, safe=None):
+def cached_clone(estimator, safe=True):
     """Adapted from sklearn.base.clone."""
     estimator_params = estimator.get_params(deep=False)
     new_estimator = estimator.__class__(**deepcopy(estimator_params))
@@ -42,6 +42,7 @@ sklearn.base.clone = cached_clone
 
 # Import after the line above in order for the `clone` caching to take effect within
 # the module.
+import alepython  # isort:skip
 import alepython.ale  # isort:skip
 
 
@@ -395,7 +396,7 @@ def multi_ale_1d(
         quantile_list,
         ale_list,
         mc_data_list,
-    ) = alepython.ale.multi_ale_plot_1d(
+    ) = alepython.multi_ale_plot_1d(
         model=model,
         train_set=X_train,
         bins=20,
