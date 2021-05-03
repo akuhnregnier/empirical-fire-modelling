@@ -88,7 +88,7 @@ def plot_multi_ale(experiment, verbose=False, **kwargs):
             monte_carlo_ratio=get_frac_train_nr_samples(Experiment["15VEG_FAPAR"], 0.1),
         )
         ax.set_title(title)
-        ax.set_xlabel(f"{feature_factory} ({variable.lags[feature_factory]})")
+        ax.set_xlabel(f"{feature_factory} ({variable.units[feature_factory]})")
 
         min_abs = np.min(np.abs(final_quantiles))
         if 0 < min_abs < 1:
