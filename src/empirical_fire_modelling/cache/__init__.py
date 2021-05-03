@@ -9,7 +9,7 @@ from wildfires.cache import (
     process_proxy,
 )
 
-from .core import VariableProxyMemory, cache, memory
+from .core import VariableProxyMemory, add_cached_shape, cache, memory
 
 process_proxy = partial(process_proxy, memory=memory)
 cache_hash_value = partial(cache_hash_value, hash_func=memory.get_hash)

@@ -17,14 +17,20 @@ from wildfires.qstat import get_ncpus
 from wildfires.utils import shorten_features
 
 from .. import variable
-from ..cache import cache, get_proxied_estimator, process_proxy
+from ..cache import add_cached_shape, cache, get_proxied_estimator, process_proxy
 from ..plotting import get_float_format, get_sci_format, update_label_with_exp
 from ..utils import column_check, tqdm
+
+orig_clone = sklearn.base.clone
 
 
 @cache
 def cached_clone(estimator, safe=True):
     """Adapted from sklearn.base.clone."""
+    from wildfires.dask_cx1 import DaskRandomForestRegressor
+
+    if not isinstance(estimator, DaskRandomForestRegressor):
+        return orig_clone(estimator, safe=safe)
     estimator_params = estimator.get_params(deep=False)
     new_estimator = estimator.__class__(**deepcopy(estimator_params))
     new_params = new_estimator.get_params(deep=False)
@@ -36,7 +42,6 @@ def cached_clone(estimator, safe=True):
 
 
 # Transparently cache estimator cloning.
-# sklearn.base.clone = cache(sklearn.base.clone)
 sklearn.base.clone = cached_clone
 
 
@@ -59,6 +64,8 @@ _orig_ale_plot = alepython.ale.ale_plot
 
 def proxied_ale_plot(**kwargs):
     kwargs["model"] = get_proxied_estimator(kwargs["model"])
+    # Cache the 'shape' attribute of `train_set`.
+    kwargs["train_set"] = add_cached_shape(kwargs["train_set"])
     return _orig_ale_plot(**kwargs)
 
 
