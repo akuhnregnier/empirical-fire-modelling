@@ -85,19 +85,19 @@ def plot_obs_pred_bin(experiment, **kwargs):
     ax.set_yscale("log")
 
     def offset_sci_format(x, *args, **kwargs):
-        canon = get_sci_format(ndigits=0)(x, None)
+        canon = get_sci_format(ndigits=0, trim_leading_one=True)(x, None)
         if np.isclose(x, 1e-5):
-            return " " * 10 + canon
-        elif np.isclose(x, 1e-4):
-            return " " * 12 + canon
+            return " " * 6 + canon
         elif np.isclose(x, 0):
-            return canon + " " * 5
+            return canon + " " * 3
         return canon
 
     ax.xaxis.set_major_formatter(
         ticker.FuncFormatter(lambda x, pos: offset_sci_format(x))
     )
-    ax.yaxis.set_major_formatter(ticker.FuncFormatter(get_sci_format(ndigits=0)))
+    ax.yaxis.set_major_formatter(
+        ticker.FuncFormatter(get_sci_format(ndigits=0, trim_leading_one=True))
+    )
 
     ax.set_xlabel("Observed (BA)")
     ax.set_ylabel("Predicted (BA)")
@@ -109,7 +109,7 @@ def plot_obs_pred_bin(experiment, **kwargs):
         img,
         shrink=0.7,
         aspect=30,
-        format=get_sci_format(ndigits=0),
+        format=get_sci_format(ndigits=0, trim_leading_one=True),
         pad=0.02,
         label="samples",
     )

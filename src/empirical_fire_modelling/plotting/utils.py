@@ -9,24 +9,31 @@ from ..exceptions import EmptyUnitSpecError
 
 
 def get_sci_format(
-    ndigits=1, zero_thres=1e-15, zero_str="0", atol=1e-8, atol_exceeded="raise"
+    ndigits=1,
+    float_thres=1e-15,
+    zero_str="0",
+    atol=1e-8,
+    atol_exceeded="raise",
+    trim_leading_one=False,
 ):
     """Scientific formatter.
 
     Args:
         ndigits (int): Number of digits.
-        zero_thres (float): Threshold for 0.
-        zero_str (str): If the number if within `zero_thres` of 0, use this instead.
+        float_thres (float): Threshold for float comparisons.
+        zero_str (str): If the number if within `float_thres` of 0, use this instead.
         atol (float): Absolute tolerance to detect incorrect labels.
         atol_exceeded ({'raise', 'adjust'}): If 'raise', raise ValueError if the
             tolernace is exceeded by a formatted label. If 'adjust', use `ndigits=10`
             for this value instead.
+        trim_leading_one (bool): If the formatted label starts with '1 x', trim
+            '1 x' off the beginning.
 
     """
 
     @FuncFormatter
     def fmt(x, pos):
-        if abs(x) < zero_thres:
+        if abs(x) < float_thres:
             return zero_str
         exponent = math.floor(math.log10(abs(x)))
         rounded = round(x / (10 ** exponent), ndigits=ndigits)
@@ -44,6 +51,10 @@ def get_sci_format(
                 )
         else:
             mantissa = format(rounded, f".{ndigits}f")
+
+        if abs(float(mantissa) - 1) < float_thres:
+            # Trim the leading '1 x'.
+            return rf"$10^{{{exponent}}}$"
         return rf"${mantissa} \times 10^{{{exponent}}}$"
 
     return fmt
@@ -52,7 +63,7 @@ def get_sci_format(
 def get_float_format(
     factor=1,
     ndigits=1,
-    zero_thres=1e-15,
+    float_thres=1e-15,
     zero_str="0",
     atol=1e-8,
     atol_exceeded="raise",
@@ -62,8 +73,8 @@ def get_float_format(
     Args:
         factor (float): Factor to divide each displayed label by.
         ndigits (int): Number of digits.
-        zero_thres (float): Threshold for 0.
-        zero_str (str): If the number if within `zero_thres` of 0, use this instead.
+        float_thres (float): Threshold for 0.
+        zero_str (str): If the number if within `float_thres` of 0, use this instead.
         atol (float): Absolute tolerance to detect incorrect labels.
         atol_exceeded ({'raise', 'adjust'}): If 'raise', raise ValueError if the
             tolernace is exceeded by a formatted label. If 'adjust', use `ndigits=10`
@@ -74,7 +85,7 @@ def get_float_format(
     @FuncFormatter
     def fmt(x, pos):
         x /= factor
-        if abs(x) < zero_thres:
+        if abs(x) < float_thres:
             return zero_str
         rounded = round(x, ndigits=ndigits)
         if abs(rounded - x) > atol:
