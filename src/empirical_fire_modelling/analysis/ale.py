@@ -12,6 +12,7 @@ import sklearn.base
 from joblib import parallel_backend
 from matplotlib.colors import SymLogNorm
 from matplotlib.lines import Line2D
+from matplotlib.patches import Polygon
 from wildfires.cache.proxy_backend import HashProxy
 from wildfires.qstat import get_ncpus
 from wildfires.utils import shorten_features
@@ -120,7 +121,11 @@ def save_ale_1d(
     ale_factor_exp=0,
     x_factor_exp=0,
     x_ndigits=2,
+    x_rotation=0,
+    x_skip=4,
 ):
+    assert monte_carlo
+
     if fig is None and ax is None:
         fig = plt.figure(figsize=(7.5, 4.5))
     elif fig is None:
@@ -147,40 +152,72 @@ def save_ale_1d(
         verbose=verbose,
         center=center,
         rng=np.random.default_rng(0),
-        fig=fig,
-        ax=ax,
+        fig=plt.figure(),  # Create dummy figure.
+        ax=None,
     )
-    if monte_carlo:
-        fig, axes, (quantiles, ale), mc_data = out
-    else:
-        fig, axes, data = out
 
-    axes["ale"].set_title("")
+    temp_fig, _, (quantiles, ale), mc_data = out
+    plt.close(temp_fig)
+
+    mc_hull_points = alepython.ale._compute_mc_hull_poly_points(
+        mc_data,
+        np.linspace(
+            np.min([mc_quantiles[0] for mc_quantiles, mc_ale in mc_data]),
+            np.max([mc_quantiles[-1] for mc_quantiles, mc_ale in mc_data]),
+            150,
+        ),
+    )
+    ax.add_patch(
+        Polygon(
+            mc_hull_points,
+            facecolor="C0",
+            alpha=0.2,
+            label=str(column),
+        )
+    )
+    min_x = np.min(mc_hull_points[:, 0])
+    max_x = np.max(mc_hull_points[:, 0])
+    min_y = np.min(mc_hull_points[:, 1])
+    max_y = np.max(mc_hull_points[:, 1])
+
+    x_margin = 0.03 * (max_x - min_x)
+    y_margin = 0.04 * (max_y - min_y)
+
+    ax.set_xlim(min_x - x_margin, max_x + x_margin)
+    ax.set_ylim(min_y - y_margin, max_y + y_margin)
 
     x_factor = 10 ** x_factor_exp
 
-    axes["ale"].set_xticks(quantiles[::2])
-    axes["ale"].xaxis.set_ticklabels(
-        np.vectorize(get_float_format(factor=x_factor, ndigits=x_ndigits, atol=np.inf))(
-            quantiles[::2]
+    if callable(x_skip):
+        ax.set_xticks(x_skip(np.arange(len(quantiles))))
+        ax.xaxis.set_ticklabels(
+            np.vectorize(
+                get_float_format(factor=x_factor, ndigits=x_ndigits, atol=np.inf)
+            )(x_skip(quantiles))
         )
-    )
-    axes["ale"].set_xlabel(
+    else:
+        ax.set_xticks(np.arange(len(quantiles))[::x_skip])
+        ax.xaxis.set_ticklabels(
+            np.vectorize(
+                get_float_format(factor=x_factor, ndigits=x_ndigits, atol=np.inf)
+            )(quantiles[::x_skip])
+        )
+    ax.set_xlabel(
         f"{column} ({variable.units[column.parent]})"
         if x_factor_exp == 0
         else f"{column} ($10^{{{x_factor_exp}}}$ {variable.units[column.parent]})"
     )
 
-    axes["ale"].yaxis.set_major_formatter(
+    ax.yaxis.set_major_formatter(
         get_float_format(factor=10 ** ale_factor_exp, ndigits=0)
     )
-    axes["ale"].set_ylabel(
+    ax.set_ylabel(
         "ALE (BA)" if ale_factor_exp == 0 else f"ALE ($10^{{{ale_factor_exp}}}$ BA)"
     )
 
-    axes["ale"].xaxis.set_tick_params(rotation=45)
+    ax.xaxis.set_tick_params(rotation=x_rotation)
 
-    axes["ale"].grid(True)
+    ax.grid(True)
 
     if figure_saver is not None:
         figure_saver.save_figure(fig, str(column), sub_directory=sub_dir)

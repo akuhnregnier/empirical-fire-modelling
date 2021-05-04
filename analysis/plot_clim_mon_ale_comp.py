@@ -41,6 +41,19 @@ warnings.filterwarnings(
 )
 
 
+def skip_14(labels):
+    """Customised label skipping for 14 quantiles."""
+    return (
+        labels[0],
+        labels[2],
+        labels[4],
+        labels[6],
+        labels[8],
+        labels[10],
+        labels[13],
+    )
+
+
 def plot_single_1d_ale(experiment, column, ax, verbose=False):
     # Operate on cached data only.
     get_experiment_split_data.check_in_store(experiment)
@@ -62,6 +75,12 @@ def plot_single_1d_ale(experiment, column, ax, verbose=False):
         ax=ax,
         ale_factor_exp={variable.FAPAR: -3, variable.DRY_DAY_PERIOD: -4}[column.parent],
         x_ndigits={variable.FAPAR: 2, variable.DRY_DAY_PERIOD: 1}[column.parent],
+        x_skip=4
+        if (
+            (experiment, column)
+            != (Experiment["15VEG_FAPAR_MON"], variable.DRY_DAY_PERIOD[3])
+        )
+        else skip_14,
     )
 
 
