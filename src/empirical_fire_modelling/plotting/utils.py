@@ -64,7 +64,7 @@ def get_float_format(
     factor=1,
     ndigits=1,
     float_thres=1e-15,
-    zero_str="0",
+    zero_str=None,
     atol=1e-8,
     atol_exceeded="raise",
 ):
@@ -74,7 +74,8 @@ def get_float_format(
         factor (float): Factor to divide each displayed label by.
         ndigits (int): Number of digits.
         float_thres (float): Threshold for 0.
-        zero_str (str): If the number if within `float_thres` of 0, use this instead.
+        zero_str (str or None): If the number if within `float_thres` of 0, use this
+            instead, except for if None is given.
         atol (float): Absolute tolerance to detect incorrect labels.
         atol_exceeded ({'raise', 'adjust'}): If 'raise', raise ValueError if the
             tolernace is exceeded by a formatted label. If 'adjust', use `ndigits=10`
@@ -85,7 +86,7 @@ def get_float_format(
     @FuncFormatter
     def fmt(x, pos):
         x /= factor
-        if abs(x) < float_thres:
+        if zero_str is not None and abs(x) < float_thres:
             return zero_str
         rounded = round(x, ndigits=ndigits)
         if abs(rounded - x) > atol:

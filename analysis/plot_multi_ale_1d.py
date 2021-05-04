@@ -8,10 +8,13 @@ from pathlib import Path
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 import numpy as np
 from loguru import logger as loguru_logger
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes, mark_inset
 from wildfires.utils import shorten_features
 
+import empirical_fire_modelling.plotting.configuration as plotting_configuration
 from empirical_fire_modelling import variable
 from empirical_fire_modelling.analysis.ale import multi_ale_1d
 from empirical_fire_modelling.configuration import Experiment
@@ -74,10 +77,16 @@ def plot_multi_ale(experiment, verbose=False, **kwargs):
         )
     features = (matched[0].parent, variable.DRY_DAY_PERIOD)
 
+    ale_factor_exp = -3
+    x_factor_exp = 0
+
     for feature_factory, ax, title in zip(
-        tqdm(features, desc="Processing features"), axes, ("(a)", "(b)")
+        tqdm(features, desc="Processing features"),
+        axes,
+        ("(a)", "(b)"),
     ):
-        final_quantiles = multi_ale_1d(
+
+        multi_ale_1d(
             model=model,
             X_train=X_train,
             features=[feature_factory[lag] for lag in variable.lags[:5]],
@@ -87,24 +96,70 @@ def plot_multi_ale(experiment, verbose=False, **kwargs):
             verbose=verbose,
             monte_carlo_rep=100,
             monte_carlo_ratio=get_frac_train_nr_samples(Experiment["15VEG_FAPAR"], 0.1),
+            legend=False,
+            ale_factor_exp=ale_factor_exp,
+            x_factor_exp=x_factor_exp,
+            x_ndigits=plotting_configuration.ndigits.get(feature_factory, 2),
+            x_skip=4,
+            x_rotation=0,
         )
         ax.set_title(title)
-        ax.set_xlabel(f"{feature_factory} ({variable.units[feature_factory]})")
-
-        min_abs = np.min(np.abs(final_quantiles))
-        if 0 < min_abs < 1:
-            precision = abs(round(np.floor(np.log10(min_abs))))
-        precision = min(max(precision, 0), 5)  # Clip the precision.
-        ax.set_xticklabels(
-            tuple(map(lambda s: format(s, f"0.{precision}f"), final_quantiles))
+        ax.set_xlabel(
+            f"{feature_factory} ({variable.units[feature_factory]})"
+            if x_factor_exp == 0
+            else (
+                f"{feature_factory} ($10^{{{x_factor_exp}}}$ "
+                f"{variable.units[feature_factory]})"
+            ),
         )
 
-        ax.xaxis.set_tick_params(rotation=45)
+    axes[1].set_ylabel("")
 
-    axes[0].set_ylabel("ALE (BA)")
+    # Inset axis to pronounce low-DD features.
 
-    fig.tight_layout(w_pad=0.02)
-    fig.align_labels()
+    ax2 = inset_axes(
+        axes[1],
+        width=2.155,
+        height=1.55,
+        loc="lower left",
+        bbox_to_anchor=(0.019, 0.225),
+        bbox_transform=ax.transAxes,
+    )
+    # Plot the DD data again on the inset axis.
+    multi_ale_1d(
+        model=model,
+        X_train=X_train,
+        features=[features[1][lag] for lag in variable.lags[:5]],
+        train_response=y_train,
+        fig=fig,
+        ax=ax2,
+        verbose=verbose,
+        monte_carlo_rep=100,
+        monte_carlo_ratio=get_frac_train_nr_samples(Experiment["15VEG_FAPAR"], 0.1),
+        legend=False,
+        ale_factor_exp=ale_factor_exp,
+    )
+
+    ax2.set_xlim(0, 17.5)
+    ax2.set_ylim(-1.5e-3, 2e-3)
+
+    ax2.xaxis.set_major_formatter(ticker.ScalarFormatter())
+    ax2.yaxis.set_major_formatter(ticker.ScalarFormatter())
+    ax2.tick_params(axis="both", which="both", length=0)
+    plt.setp(ax2.get_xticklabels(), visible=False)
+    plt.setp(ax2.get_yticklabels(), visible=False)
+
+    ax2.set_ylabel("")
+    ax2.set_xlabel("")
+    ax2.grid(True)
+
+    mark_inset(axes[1], ax2, loc1=4, loc2=2, fc="none", ec="0.3")
+
+    # Move the first (left) axis to the right.
+    orig_bbox = axes[0].get_position()
+    axes[0].set_position(
+        [orig_bbox.xmin + 0.021, orig_bbox.ymin, orig_bbox.width, orig_bbox.height]
+    )
 
     # Explicitly set the x-axis labels' positions so they line up horizontally.
     y_min = 1
@@ -115,7 +170,26 @@ def plot_multi_ale(experiment, verbose=False, **kwargs):
     for ax in axes:
         bbox = ax.get_position()
         mean_x = (bbox.xmin + bbox.xmax) / 2.0
-        ax.xaxis.set_label_coords(mean_x, y_min - 0.147, transform=fig.transFigure)
+        # NOTE - Decrease the negative offset to move the label upwards.
+        ax.xaxis.set_label_coords(mean_x, y_min - 0.1, transform=fig.transFigure)
+
+    # Plot the legend in between the two axes.
+    axes[1].legend(
+        loc="center",
+        ncol=5,
+        bbox_to_anchor=(
+            np.mean(
+                [
+                    axes[0].get_position().xmax,
+                    axes[1].get_position().xmin,
+                ]
+            ),
+            0.932,
+        ),
+        bbox_transform=fig.transFigure,
+        handletextpad=0.25,
+        columnspacing=0.5,
+    )
 
     exp_figure_saver.save_figure(
         fig,

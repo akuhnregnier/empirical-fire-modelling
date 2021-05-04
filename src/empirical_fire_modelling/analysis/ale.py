@@ -459,12 +459,21 @@ def multi_ale_1d(
     monte_carlo_ratio=1000,
     verbose=True,
     center=False,
-    figure_saver=None,
-    sub_dir="multi_ale",
     fig=None,
     ax=None,
     rngs=None,
+    legend=True,
+    legend_kwargs=None,
+    ale_factor_exp=0,
+    x_factor_exp=0,
+    x_ndigits=2,
+    x_rotation=0,
+    x_skip=4,
+    x_margin_factor=0.015,
+    y_margin_factor=0.025,
 ):
+    assert monte_carlo
+
     if fig is None and ax is None:
         fig, ax = plt.subplots(
             figsize=(7, 3)
@@ -477,42 +486,145 @@ def multi_ale_1d(
     if rngs is None:
         rngs = [np.random.default_rng(i) for i in range(len(features))]
 
-    (
-        fig,
-        ax,
-        final_quantiles,
+    if legend_kwargs is None:
+        legend_kwargs = {}
+
+    markers = ("o", "v", "^", "<", ">", "x", "+")
+    colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+
+    zorders = list(range(2, 2 + len(features)))
+
+    quantile_list = []
+    ale_list = []
+    mc_data_list = []
+    for feature, rng in zip(
+        tqdm(
+            features,
+            desc="Calculating feature ALEs",
+            disable=not verbose,
+        ),
+        rngs,
+    ):
+        out = alepython.ale.ale_plot(
+            model=model,
+            train_set=X_train,
+            train_response=train_response,
+            features=feature,
+            bins=20,
+            rng=rng,
+            quantile_axis=False,
+            center=center,
+            monte_carlo=True,
+            monte_carlo_rep=monte_carlo_rep,
+            monte_carlo_ratio=monte_carlo_ratio,
+            return_data=True,
+            return_mc_data=True,
+            fig=plt.figure(),  # Create dummy figure.
+            ax=None,
+            verbose=verbose,
+        )
+        temp_fig, _, (quantiles, ale), mc_data = out
+        # Close the unneeded temporary figure.
+        plt.close(temp_fig)
+
+        # Record the generated data for this feature.
+        quantile_list.append(quantiles)
+        ale_list.append(ale)
+        mc_data_list.append(mc_data)
+
+    # Construct quantiles from the individual quantiles, minimising the amount of interpolation.
+    combined_quantiles = np.vstack([quantiles[None] for quantiles in quantile_list])
+
+    final_quantiles = np.mean(combined_quantiles, axis=0)
+
+    mod_quantiles = np.arange(len(quantiles))
+
+    x_lims = [np.inf, -np.inf]
+    y_lims = [np.inf, -np.inf]
+
+    def update_lims(v, lims):
+        v_min = np.min(v)
+        v_max = np.max(v)
+        if v_min < lims[0]:
+            lims[0] = v_min
+        if v_max > lims[1]:
+            lims[1] = v_max
+
+    for feature, quantiles, ale, marker, color, zorder, mc_data in zip(
+        features,
         quantile_list,
         ale_list,
+        markers,
+        colors,
+        zorders,
         mc_data_list,
-    ) = alepython.multi_ale_plot_1d(
-        model=model,
-        train_set=X_train,
-        bins=20,
-        features=features,
-        train_response=train_response,
-        monte_carlo=monte_carlo,
-        monte_carlo_rep=monte_carlo_rep,
-        monte_carlo_ratio=monte_carlo_ratio,
-        return_data=True,
-        return_mc_data=True,
-        show_full=False,
-        verbose=verbose,
-        center=center,
-        fig=fig,
-        ax=ax,
-        format_xlabels=False,
-        xlabel_skip=1,
-        rngs=rngs,
-    )
+    ):
+        assert mc_data is not None
 
-    if figure_saver is not None:
-        figure_saver.save_figure(
-            fig,
-            "__".join(map(shorten_features(map(str, features)))).replace(" ", "_"),
-            sub_directory=sub_dir,
+        # Compute the hull and plot it as a Polygon.
+        mod_mc_data = tuple(
+            (np.interp(mc_quantiles, final_quantiles, mod_quantiles), mc_ale)
+            for mc_quantiles, mc_ale in mc_data
+        )
+        mc_hull_points = alepython.ale._compute_mc_hull_poly_points(
+            mod_mc_data,
+            np.linspace(
+                np.min([mc_quantiles[0] for mc_quantiles, mc_ale in mod_mc_data]),
+                np.max([mc_quantiles[-1] for mc_quantiles, mc_ale in mod_mc_data]),
+                150,
+            ),
+        )
+        ax.add_patch(
+            Polygon(
+                mc_hull_points,
+                facecolor=color,
+                zorder=zorder,
+                label=f"{feature.shift}M",
+                alpha=0.7,
+            )
         )
 
-    return final_quantiles
+        # Update plot limits.
+        update_lims(mc_hull_points[:, 0], x_lims)
+        update_lims(mc_hull_points[:, 1], y_lims)
+
+    # Set plot limits.
+    x_margin = x_margin_factor * (x_lims[1] - x_lims[0])
+    ax.set_xlim(x_lims[0] - x_margin, x_lims[1] + x_margin)
+    y_margin = y_margin_factor * (y_lims[1] - y_lims[0])
+    ax.set_ylim(y_lims[0] - y_margin, y_lims[1] + y_margin)
+
+    if legend:
+        print({**{"loc": "best"}, **legend_kwargs})
+        ax.legend(**{**{"loc": "best", "ncol": 2}, **legend_kwargs})
+
+    x_factor = 10 ** x_factor_exp
+
+    if callable(x_skip):
+        ax.set_xticks(x_skip(mod_quantiles))
+        ax.xaxis.set_ticklabels(
+            np.vectorize(
+                get_float_format(factor=x_factor, ndigits=x_ndigits, atol=np.inf)
+            )(x_skip(final_quantiles))
+        )
+    else:
+        ax.set_xticks(mod_quantiles[::x_skip])
+        ax.xaxis.set_ticklabels(
+            np.vectorize(
+                get_float_format(factor=x_factor, ndigits=x_ndigits, atol=np.inf)
+            )(final_quantiles[::x_skip])
+        )
+
+    ax.yaxis.set_major_formatter(
+        get_float_format(factor=10 ** ale_factor_exp, ndigits=0)
+    )
+    ax.set_ylabel(
+        "ALE (BA)" if ale_factor_exp == 0 else f"ALE ($10^{{{ale_factor_exp}}}$ BA)"
+    )
+
+    ax.xaxis.set_tick_params(rotation=x_rotation)
+
+    ax.grid(True)
 
 
 def get_model_predict(model):

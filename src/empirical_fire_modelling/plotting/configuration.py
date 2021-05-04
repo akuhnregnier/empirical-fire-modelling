@@ -87,6 +87,6 @@ ale_factor_exps = {
 }
 ndigits = {
     variable.FAPAR: 2,
-    variable.DRY_DAY_PERIOD: 1,
+    variable.DRY_DAY_PERIOD: 0,
 }
 factor_exps = {variable.FAPAR: 0, variable.DRY_DAY_PERIOD: 0}

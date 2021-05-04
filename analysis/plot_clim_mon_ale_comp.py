@@ -10,6 +10,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 from loguru import logger as loguru_logger
 
+import empirical_fire_modelling.plotting.configuration as plotting_configuration
 from empirical_fire_modelling import variable
 from empirical_fire_modelling.analysis.ale import save_ale_1d
 from empirical_fire_modelling.configuration import Experiment
@@ -74,7 +75,7 @@ def plot_single_1d_ale(experiment, column, ax, verbose=False):
         monte_carlo_ratio=get_frac_train_nr_samples(Experiment["15VEG_FAPAR"], 0.1),
         ax=ax,
         ale_factor_exp={variable.FAPAR: -3, variable.DRY_DAY_PERIOD: -4}[column.parent],
-        x_ndigits={variable.FAPAR: 2, variable.DRY_DAY_PERIOD: 1}[column.parent],
+        x_ndigits=plotting_configuration.ndigits.get(column.parent, 2),
         x_skip=4
         if (
             (experiment, column)

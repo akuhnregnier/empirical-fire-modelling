@@ -146,7 +146,7 @@ def multi_model_ale_plot(*args, verbose=False, **kwargs):
 
         for ax, var in zip(axes[-1], comp_vars):
             assert x_factor_exp == 0
-            ax.set_xlabel(f"{var} ({variable.units[var]})")
+            ax.set_xlabel(f"{shorten_features(str(var))} ({variable.units[var]})")
 
         for ax, title in zip(axes.flatten(), ascii_lowercase):
             ax.text(0.5, 1.05, f"({title})", transform=ax.transAxes, fontsize=10)
