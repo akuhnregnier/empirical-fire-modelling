@@ -18,6 +18,7 @@ from wildfires.utils import shorten_features
 
 from .. import variable
 from ..cache import add_cached_shape, cache, get_proxied_estimator, process_proxy
+from ..model import assign_n_jobs
 from ..plotting import get_float_format, get_sci_format, update_label_with_exp
 from ..utils import column_check, tqdm
 
@@ -47,7 +48,10 @@ def delegate_clone(estimator, safe=True):
     if isinstance(estimator, HashProxy) or isinstance(
         estimator, DaskRandomForestRegressor
     ):
-        return cached_clone(estimator, safe=safe)
+        cached_est = cached_clone(estimator, safe=safe)
+        # Update n_jobs since this will be determined by the original call to the
+        # cached function. Do this lazily so it is only updated when needed.
+        return process_proxy((cached_est,), (assign_n_jobs,))[0]
     return orig_clone(estimator, safe=safe)
 
 
@@ -113,6 +117,9 @@ def save_ale_1d(
     sub_dir="ale",
     fig=None,
     ax=None,
+    ale_factor_exp=0,
+    x_factor_exp=0,
+    x_ndigits=2,
 ):
     if fig is None and ax is None:
         fig = plt.figure(figsize=(7.5, 4.5))
@@ -131,7 +138,7 @@ def save_ale_1d(
         monte_carlo_rep=monte_carlo_rep,
         monte_carlo_ratio=monte_carlo_ratio,
         monte_carlo_hull=monte_carlo_hull,
-        plot_quantiles=True,
+        plot_quantiles=False,
         quantile_axis=True,
         rugplot_lim=0,
         scilim=0.6,
@@ -144,12 +151,36 @@ def save_ale_1d(
         ax=ax,
     )
     if monte_carlo:
-        fig, axes, data, mc_data = out
+        fig, axes, (quantiles, ale), mc_data = out
     else:
         fig, axes, data = out
 
-    for ax_key in ("ale", "quantiles_x"):
-        axes[ax_key].xaxis.set_tick_params(rotation=45)
+    axes["ale"].set_title("")
+
+    x_factor = 10 ** x_factor_exp
+
+    axes["ale"].set_xticks(quantiles[::2])
+    axes["ale"].xaxis.set_ticklabels(
+        np.vectorize(get_float_format(factor=x_factor, ndigits=x_ndigits, atol=np.inf))(
+            quantiles[::2]
+        )
+    )
+    axes["ale"].set_xlabel(
+        f"{column} ({variable.units[column.parent]})"
+        if x_factor_exp == 0
+        else f"{column} ($10^{{{x_factor_exp}}}$ {variable.units[column.parent]})"
+    )
+
+    axes["ale"].yaxis.set_major_formatter(
+        get_float_format(factor=10 ** ale_factor_exp, ndigits=0)
+    )
+    axes["ale"].set_ylabel(
+        "ALE (BA)" if ale_factor_exp == 0 else f"ALE ($10^{{{ale_factor_exp}}}$ BA)"
+    )
+
+    axes["ale"].xaxis.set_tick_params(rotation=45)
+
+    axes["ale"].grid(True)
 
     if figure_saver is not None:
         figure_saver.save_figure(fig, str(column), sub_directory=sub_dir)
@@ -256,7 +287,7 @@ def save_ale_2d(
                     format=get_float_format(factor=10 ** ale_factor_exp, ndigits=0),
                     cax=cax[0],
                     label=(
-                        f"ALE (BA)"
+                        "ALE (BA)"
                         if ale_factor_exp == 0
                         else f"ALE ($10^{{{ale_factor_exp}}}$ BA)"
                     ),
