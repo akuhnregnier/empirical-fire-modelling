@@ -61,7 +61,7 @@ def correlation_plot(experiment, **kwargs):
         )
         plt.grid(False)
 
-    with exp_figure_saver("corr_plot_full"):
+    with exp_figure_saver(f"{experiment.name}_corr_plot_full"):
         corr_plot(
             df_cols_to_str(exog_data[list(sort_variables(exog_data.columns))]),
             fig_kwargs={"figsize": (14, 10)},

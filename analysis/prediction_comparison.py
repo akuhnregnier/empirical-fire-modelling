@@ -117,8 +117,11 @@ def prediction_comparisons():
         cbar_extendfrac=0.1,
         cbar_pad=0.02,
         cbar_format=None,
-        loc=(0.77, 0.15),
         **get_aux0_aux1_kwargs(y_test, master_mask),
+        loc=(0.79, 0.14),
+        height=0.05,
+        aspect=1.25,
+        spacing=0.06 * 0.2,
     )
     cbar.ax.yaxis.label.set_size(7)
 
