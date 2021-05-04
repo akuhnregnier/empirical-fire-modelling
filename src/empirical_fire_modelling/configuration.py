@@ -48,7 +48,7 @@ main_experiments = (
 )
 clim_experiments = [exp for exp in Experiment if not exp.name.endswith("_MON")]
 
-shared_figure_saver_kwargs = immutabledict(debug=True)
+shared_figure_saver_kwargs = immutabledict(debug=False)
 figure_saver_kwargs = immutabledict({**shared_figure_saver_kwargs, **dict(dpi=300)})
 map_figure_saver_kwargs = immutabledict(
     {**shared_figure_saver_kwargs, **dict(dpi=1200)}
