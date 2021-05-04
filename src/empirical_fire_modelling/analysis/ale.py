@@ -202,6 +202,9 @@ def save_ale_2d(
     y_ndigits=2,
     *,
     experiment,
+    ale_x_skip=2,
+    samples_x_skip=4,
+    samples_y_skip=2,
 ):
     model.n_jobs = n_jobs
 
@@ -298,10 +301,6 @@ def save_ale_2d(
             include_first_order=include_first_order,
         )
 
-    for ax_key in ("ale", "quantiles_x"):
-        if ax_key in axes:
-            axes[ax_key].xaxis.set_tick_params(rotation=50)
-
     axes["ale"].set_aspect("equal")
     axes["ale"].set_title("")
 
@@ -313,6 +312,10 @@ def save_ale_2d(
             quantiles_list[0]
         )
     )
+    for i, label in enumerate(axes["ale"].xaxis.get_ticklabels()):
+        if i % ale_x_skip:
+            label.set_visible(False)
+
     axes["ale"].yaxis.set_ticklabels(
         np.vectorize(get_float_format(factor=y_factor, ndigits=y_ndigits, atol=np.inf))(
             quantiles_list[1]
@@ -330,9 +333,6 @@ def save_ale_2d(
         else f"{features[1]} ($10^{{{y_factor_exp}}}$ {variable.units[features[1].parent]})"
     )
 
-    for tick in axes["ale"].xaxis.get_major_ticks():
-        tick.label1.set_horizontalalignment("right")
-
     if plot_samples:
         # Plotting samples.
         mod_quantiles_list = []
@@ -349,7 +349,13 @@ def save_ale_2d(
                     )(quantiles)
                 }
             )
-            for label in getattr(ax[1], f"{axis}axis").get_ticklabels()[1::2]:
+
+        for i, label in enumerate(ax[1].xaxis.get_ticklabels()):
+            if i % samples_x_skip:
+                label.set_visible(False)
+
+        for i, label in enumerate(ax[1].yaxis.get_ticklabels()):
+            if i % samples_y_skip:
                 label.set_visible(False)
 
         samples_img = ax[1].pcolormesh(
@@ -368,9 +374,6 @@ def save_ale_2d(
             label="samples",
             format=integer_sci_format,
         )
-        ax[1].xaxis.set_tick_params(rotation=50)
-        for tick in ax[1].xaxis.get_major_ticks():
-            tick.label1.set_horizontalalignment("right")
         ax[1].set_aspect("equal")
         ax[1].set_xlabel(
             f"{features[0]} ({variable.units[features[0].parent]})"
