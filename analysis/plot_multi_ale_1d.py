@@ -105,7 +105,7 @@ def plot_multi_ale(experiment, verbose=False, **kwargs):
         )
         ax.set_title(title)
         ax.set_xlabel(
-            f"{feature_factory} ({variable.units[feature_factory]})"
+            f"{shorten_features(str(feature_factory))} ({variable.units[feature_factory]})"
             if x_factor_exp == 0
             else (
                 f"{feature_factory} ($10^{{{x_factor_exp}}}$ "

@@ -222,7 +222,7 @@ def ba_plotting(
         dummy_lat_lon_cube(frac_diffs),
         bin_edges=diff_boundaries,
         ax=axes[2],
-        cbar_label="<Ob. - Pr.)> / <Ob.>",
+        cbar_label="<Ob. - Pr.> / <Ob.>",
         extend=extend,
         cmap="PuOr_r",
         # Add labelled rectangles only to the last plot.
