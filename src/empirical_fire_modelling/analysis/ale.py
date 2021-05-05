@@ -360,14 +360,20 @@ def save_ale_2d(
     )
 
     axes["ale"].set_xlabel(
-        f"{features[0]} ({variable.units[features[0].parent]})"
+        f"{shorten_features(str(features[0]))} ({variable.units[features[0].parent]})"
         if x_factor_exp == 0
-        else f"{features[0]} ($10^{{{x_factor_exp}}}$ {variable.units[features[0].parent]})"
+        else (
+            f"{shorten_features(str(features[0]))} "
+            f"($10^{{{x_factor_exp}}}$ {variable.units[features[0].parent]})"
+        )
     )
     axes["ale"].set_ylabel(
-        f"{features[1]} ({variable.units[features[1].parent]})"
+        f"{shorten_features(str(features[1]))} ({variable.units[features[1].parent]})"
         if y_factor_exp == 0
-        else f"{features[1]} ($10^{{{y_factor_exp}}}$ {variable.units[features[1].parent]})"
+        else (
+            f"{shorten_features(str(features[1]))} "
+            f"($10^{{{y_factor_exp}}}$ {variable.units[features[1].parent]})"
+        )
     )
 
     if plot_samples:
@@ -413,14 +419,26 @@ def save_ale_2d(
         )
         ax[1].set_aspect("equal")
         ax[1].set_xlabel(
-            f"{features[0]} ({variable.units[features[0].parent]})"
+            (
+                f"{shorten_features(str(features[0]))} "
+                f"({variable.units[features[0].parent]})"
+            )
             if x_factor_exp == 0
-            else f"{features[0]} ($10^{{{x_factor_exp}}}$ {variable.units[features[0].parent]})"
+            else (
+                f"{shorten_features(str(features[0]))} "
+                f"($10^{{{x_factor_exp}}}$ {variable.units[features[0].parent]})"
+            )
         )
         ax[1].set_ylabel(
-            f"{features[1]} ({variable.units[features[1].parent]})"
+            (
+                f"{shorten_features(str(features[1]))} "
+                f"({variable.units[features[1].parent]})"
+            )
             if y_factor_exp == 0
-            else f"{features[1]} ($10^{{{y_factor_exp}}}$ {variable.units[features[1].parent]})"
+            else (
+                f"{shorten_features(str(features[1]))} "
+                f"($10^{{{y_factor_exp}}}$ {variable.units[features[1].parent]})"
+            )
         )
 
         fig.set_constrained_layout_pads(
@@ -780,7 +798,7 @@ def multi_model_ale_1d(
             ax,
             feature_data=feature_data,
             feature=feature,
-            xlabel=str(feature),
+            xlabel=shorten_features(str(feature)),
             verbose=verbose,
             x_ndigits=x_ndigits,
             x_factor=x_factor,
