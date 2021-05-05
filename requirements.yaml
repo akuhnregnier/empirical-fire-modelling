@@ -376,12 +376,12 @@ dependencies:
   - zlib=1.2.11=h516909a_1010
   - zstd=1.4.8=ha95c52a_1
   - pip:
-    - git+https://github.com/akuhnregnier/ALEPython.git@0.5.4#egg=alepython
+    - git+https://github.com/akuhnregnier/ALEPython.git@0.5.5#egg=alepython
     - git+https://github.com/akuhnregnier/clean_ipynb.git@0.3.2#egg=clean_ipynb
     - git+https://github.com/akuhnregnier/era5analysis.git@0.2.1#egg=era5analysis
     - git+https://github.com/akuhnregnier/jupyter-notebook-tools.git@0.1.0#egg=jupyter-notebook-tools
     - git+https://github.com/akuhnregnier/rulefit.git@v0.3.1#egg=rulefit
-    - git+https://github.com/akuhnregnier/wildfires.git@0.10.1#egg=wildfires
+    - git+https://github.com/akuhnregnier/wildfires.git@0.10.2#egg=wildfires
     - autoflake==1.4
     - greenlet==1.0.0
     - logging-tree==1.8.1
