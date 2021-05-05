@@ -88,22 +88,32 @@ def plot_single_1d_ale(experiment, column, ax, verbose=False):
 def plot_clim_mon_ale_comp(*args, verbose=False, **kwargs):
     fig, axes = plt.subplots(2, 2, figsize=(5.8, 4.1))
     plot_spec = {
-        axes[0, 0]: (Experiment["15VEG_FAPAR"], variable.FAPAR[0]),
-        axes[0, 1]: (Experiment["15VEG_FAPAR_MON"], variable.FAPAR[0]),
-        axes[1, 0]: (Experiment["15VEG_FAPAR"], variable.DRY_DAY_PERIOD[3]),
-        axes[1, 1]: (Experiment["15VEG_FAPAR_MON"], variable.DRY_DAY_PERIOD[3]),
+        axes[0, 0]: (Experiment["15VEG_FAPAR"], variable.FAPAR[0], "(a) 15VEG_FAPAR"),
+        axes[0, 1]: (
+            Experiment["15VEG_FAPAR_MON"],
+            variable.FAPAR[0],
+            "(b) 15VEG_FAPAR_MON",
+        ),
+        axes[1, 0]: (
+            Experiment["15VEG_FAPAR"],
+            variable.DRY_DAY_PERIOD[3],
+            "(c) 15VEG_FAPAR",
+        ),
+        axes[1, 1]: (
+            Experiment["15VEG_FAPAR_MON"],
+            variable.DRY_DAY_PERIOD[3],
+            "(d) 15VEG_FAPAR_MON",
+        ),
     }
-    for (ax, (experiment, column)) in tqdm(
+    for (ax, (experiment, column, title)) in tqdm(
         plot_spec.items(), desc="ALE plots", disable=not verbose
     ):
         plot_single_1d_ale(experiment, column, ax=ax, verbose=verbose)
+        ax.set_title(title)
         gc.collect()
 
     for ax in axes[:, 1]:
         ax.set_ylabel("")
-
-    axes[0, 0].set_title("15VEG_FAPAR")
-    axes[0, 1].set_title("15VEG_FAPAR_MON")
 
     fig.tight_layout()
     fig.align_labels()

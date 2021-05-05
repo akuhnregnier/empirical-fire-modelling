@@ -203,7 +203,7 @@ def save_ale_1d(
             )(quantiles[::x_skip])
         )
     ax.set_xlabel(
-        f"{column} ({variable.units[column.parent]})"
+        f"{shorten_features(str(column))} ({variable.units[column.parent]})"
         if x_factor_exp == 0
         else f"{column} ($10^{{{x_factor_exp}}}$ {variable.units[column.parent]})"
     )
