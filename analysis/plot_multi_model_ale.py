@@ -152,6 +152,11 @@ def multi_model_ale_plot(*args, verbose=False, **kwargs):
         for ax, title in zip(axes.flatten(), ascii_lowercase):
             ax.text(0.5, 1.05, f"({title})", transform=ax.transAxes)
 
+        margin = 0.4
+
+        for ax in axes.ravel():
+            ax.set_xlim(-margin, 20 + margin)
+
         fig.tight_layout(h_pad=0.4)
         fig.align_labels()
 

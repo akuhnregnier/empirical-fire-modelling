@@ -691,6 +691,11 @@ def single_ax_multi_ale_1d(
 
     final_quantiles = np.mean(combined_quantiles, axis=0)
 
+    # The chosen variable for this plot comes from the same dataset (i.e. subsets of
+    # the ALL-dataset), thus the quantiles, which are purely informed by the data,
+    # should match.
+    assert np.allclose(final_quantiles, combined_quantiles)
+
     mod_quantiles = np.arange(len(quantiles))
 
     for plot_kwargs, quantiles, ale in zip(
