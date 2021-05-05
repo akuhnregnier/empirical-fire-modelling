@@ -6,6 +6,7 @@ import warnings
 from pathlib import Path
 
 import matplotlib as mpl
+import pandas as pd
 from loguru import logger as loguru_logger
 
 from empirical_fire_modelling.configuration import Experiment
@@ -47,8 +48,11 @@ def get_experiment_model_scores(experiment, cache_check=False, **kwargs):
 
 
 if __name__ == "__main__":
-    scores = run(get_experiment_model_scores, list(Experiment), cx1_kwargs=False)
-
-    from pprint import pprint
-
-    pprint(scores)
+    scores = {
+        exp.name: vals
+        for exp, vals in zip(
+            list(Experiment),
+            run(get_experiment_model_scores, list(Experiment), cx1_kwargs=False),
+        )
+    }
+    print(pd.DataFrame(scores))

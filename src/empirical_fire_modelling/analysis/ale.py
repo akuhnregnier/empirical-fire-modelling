@@ -171,7 +171,7 @@ def save_ale_1d(
         Polygon(
             mc_hull_points,
             facecolor="C0",
-            alpha=0.2,
+            alpha=0.7,
             label=str(column),
         )
     )
@@ -180,7 +180,7 @@ def save_ale_1d(
     min_y = np.min(mc_hull_points[:, 1])
     max_y = np.max(mc_hull_points[:, 1])
 
-    x_margin = 0.03 * (max_x - min_x)
+    x_margin = 0.02 * (max_x - min_x)
     y_margin = 0.04 * (max_y - min_y)
 
     ax.set_xlim(min_x - x_margin, max_x + x_margin)

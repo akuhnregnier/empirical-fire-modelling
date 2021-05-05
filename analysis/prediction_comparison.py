@@ -80,6 +80,17 @@ def prediction_comparisons():
             y_train=y_train,
             predict_X=X_test,
         )
+
+        print("Experiment:", experiment.name)
+        print("mean observed test:", np.mean(y_test.values))
+        print("mean predicted test:", np.mean(predicted_test))
+        print("lowest observed test:", np.min(y_test.values))
+        print(
+            "fraction of times this occurs:",
+            np.sum(y_test.values == np.min(y_test.values)) / y_test.values.size,
+        )
+        print("lowest test prediction:", np.min(predicted_test))
+
         experiment_predictions[experiment] = predicted_test
         experiment_errors[experiment] = y_test.values - predicted_test
 
