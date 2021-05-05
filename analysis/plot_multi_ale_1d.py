@@ -85,7 +85,6 @@ def plot_multi_ale(experiment, verbose=False, **kwargs):
         axes,
         ("(a)", "(b)"),
     ):
-
         multi_ale_1d(
             model=model,
             X_train=X_train,

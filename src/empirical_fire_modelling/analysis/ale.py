@@ -173,6 +173,7 @@ def save_ale_1d(
             facecolor="C0",
             alpha=0.7,
             label=str(column),
+            zorder=2,
         )
     )
     min_x = np.min(mc_hull_points[:, 0])
