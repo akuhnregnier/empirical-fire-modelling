@@ -195,6 +195,7 @@ def plot_multi_ale(experiment, verbose=False, **kwargs):
         fig,
         f'{experiment.name}_{"__".join(map(shorten_features, map(str, features)))}_ale_shifts',
         sub_directory="multi_ale",
+        transparent=False,
     )
 
 
