@@ -9,10 +9,11 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 from loguru import logger as loguru_logger
 from wildfires.analysis import corr_plot
+from wildfires.utils import shorten_features
 
 from empirical_fire_modelling.configuration import Experiment
 from empirical_fire_modelling.cx1 import run
-from empirical_fire_modelling.data import get_data
+from empirical_fire_modelling.data import get_data, get_endog_exog_mask
 from empirical_fire_modelling.logging_config import enable_logging
 from empirical_fire_modelling.plotting import figure_saver
 from empirical_fire_modelling.variable import sort_variables
@@ -40,31 +41,32 @@ def correlation_plot(experiment, **kwargs):
 
     # Operate on cached data only.
     get_data(experiment, cache_check=True)
-    _, exog_data, _, _, _ = get_data(experiment)
+    _, exog_data, _ = get_endog_exog_mask(experiment)
 
     def df_cols_to_str(df):
-        df.columns = list(map(str, df.columns))
+        df.columns = list(map(lambda s: shorten_features(str(s)), df.columns))
         return df
 
-    with exp_figure_saver("corr_plot"):
-        corr_plot(
-            df_cols_to_str(
-                exog_data[
-                    list(
-                        sort_variables(
-                            var for var in exog_data.columns if var.shift <= 9
-                        )
-                    )
-                ]
-            ),
-            fig_kwargs={"figsize": (12, 8)},
-        )
-        plt.grid(False)
+    # with exp_figure_saver("corr_plot"):
+    #     corr_plot(
+    #         df_cols_to_str(
+    #             exog_data[
+    #                 list(
+    #                     sort_variables(
+    #                         var for var in exog_data.columns if var.shift <= 9
+    #                     )
+    #                 )
+    #             ]
+    #         ),
+    #         fig_kwargs={"figsize": (12, 8)},
+    #     )
+    #     plt.grid(False)
 
     with exp_figure_saver(f"{experiment.name}_corr_plot_full"):
         corr_plot(
             df_cols_to_str(exog_data[list(sort_variables(exog_data.columns))]),
-            fig_kwargs={"figsize": (14, 10)},
+            rotation=70,
+            fig_kwargs={"figsize": (8.2, 6.3)},
         )
         plt.grid(False)
 

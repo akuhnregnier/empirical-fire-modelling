@@ -2,6 +2,7 @@
 """Model training."""
 from functools import partial
 
+import pandas as pd
 from joblib import parallel_backend
 from sklearn.metrics import mean_squared_error, r2_score
 from wildfires.dask_cx1 import DaskRandomForestRegressor
@@ -12,6 +13,7 @@ from ..configuration import param_dict
 
 __all__ = (
     "assign_n_jobs",
+    "get_gini_importances",
     "get_model",
     "get_model_predict",
     "get_model_scores",
@@ -84,3 +86,15 @@ def get_model_scores(model, X_test, X_train, y_test, y_train):
         "train_mse": mean_squared_error(y_train, y_train_pred),
         "oob_r2": model.oob_score_,
     }
+
+
+@cache
+def get_gini_importances(X_train, y_train, param_dict=param_dict, **kwargs):
+    rf = get_model(X_train, y_train, **kwargs)
+    ind_trees_gini = pd.DataFrame(
+        [tree.feature_importances_ for tree in rf],
+        columns=X_train.columns,
+    )
+    mean_importances = ind_trees_gini.mean().sort_values(ascending=False)
+    std_importances = ind_trees_gini.std().reindex(mean_importances.index, axis=1)
+    return mean_importances, std_importances

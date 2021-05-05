@@ -92,7 +92,7 @@ def get_float_format(
         if abs(rounded - x) > atol:
             if atol_exceeded == "adjust":
                 # Use a higher number of ndigits.
-                rounded = round(x, ndigits=10)
+                return str(x)
             else:
                 raise ValueError(
                     f"Discrepancy too large - after rounding: {rounded} vs. original: {x}"

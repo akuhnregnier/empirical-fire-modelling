@@ -10,7 +10,6 @@ from string import ascii_lowercase
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-import numpy as np
 from loguru import logger as loguru_logger
 from wildfires.utils import shorten_features
 
@@ -18,7 +17,11 @@ from empirical_fire_modelling import variable
 from empirical_fire_modelling.analysis.ale import multi_model_ale_1d
 from empirical_fire_modelling.configuration import Experiment
 from empirical_fire_modelling.cx1 import run
-from empirical_fire_modelling.data import get_data, get_experiment_split_data
+from empirical_fire_modelling.data import (
+    get_data,
+    get_endog_exog_mask,
+    get_experiment_split_data,
+)
 from empirical_fire_modelling.logging_config import enable_logging
 from empirical_fire_modelling.model import get_model
 from empirical_fire_modelling.plotting import experiment_plot_kwargs, figure_saver
@@ -69,7 +72,7 @@ def multi_model_ale_plot(*args, verbose=False, **kwargs):
         X_train, X_test, y_train, y_test = get_experiment_split_data(experiment)
         get_model(X_train, y_train, cache_check=True)
 
-        experiment_masks.append(get_data(experiment)[2])
+        experiment_masks.append(get_endog_exog_mask(experiment)[2])
         plotting_experiment_data[experiment] = dict(
             model=get_model(X_train, y_train),
             X_train=X_train,
@@ -81,9 +84,7 @@ def multi_model_ale_plot(*args, verbose=False, **kwargs):
     lags = (0, 1, 3, 6, 9)
 
     for comp_vars in [[variable.FAPAR, variable.LAI], [variable.SIF, variable.VOD]]:
-        fig, axes = plt.subplots(
-            5, 2, sharex="col", figsize=np.array([5.4, 1.5]) * np.array([2, 5])
-        )
+        fig, axes = plt.subplots(5, 2, sharex="col", figsize=(7.0, 5.8))
 
         # Create general legend labels (with 'X' instead of FAPAR, or LAI, etc...).
         mod_exp_plot_kwargs = deepcopy(experiment_plot_kwargs)
@@ -137,7 +138,7 @@ def multi_model_ale_plot(*args, verbose=False, **kwargs):
         for ax in axes[:, 0]:
             lag_match = re.search("(\dM)", ax.get_xlabel())
             if lag_match:
-                lag_m = f" ({lag_match.group(1)})"
+                lag_m = f" {lag_match.group(1)}"
             else:
                 lag_m = ""
             ax.set_ylabel(f"ALE{lag_m} ({y_factor_str} BA)")
@@ -149,9 +150,10 @@ def multi_model_ale_plot(*args, verbose=False, **kwargs):
             ax.set_xlabel(f"{shorten_features(str(var))} ({variable.units[var]})")
 
         for ax, title in zip(axes.flatten(), ascii_lowercase):
-            ax.text(0.5, 1.05, f"({title})", transform=ax.transAxes, fontsize=10)
+            ax.text(0.5, 1.05, f"({title})", transform=ax.transAxes)
 
         fig.tight_layout(h_pad=0.4)
+        fig.align_labels()
 
         figure_saver.save_figure(
             fig,

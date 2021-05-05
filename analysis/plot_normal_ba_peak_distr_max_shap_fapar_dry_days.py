@@ -72,7 +72,7 @@ def combined_plot(
     fig, axes = plt.subplots(
         2,
         2,
-        figsize=(10.2, 5.2),
+        figsize=(8.5, 5.2),
         subplot_kw=dict(projection=ccrs.Robinson()),
         dpi=300,
     )
@@ -155,7 +155,7 @@ def combined_plot(
             ha="center",
         )
 
-    fig.subplots_adjust(wspace=-0.045, hspace=0.1)
+    fig.subplots_adjust(wspace=0.04, hspace=-0.08)
 
     # Add the shared colorbars.
 

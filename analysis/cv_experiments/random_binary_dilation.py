@@ -13,6 +13,7 @@ from empirical_fire_modelling.cx1 import run
 from empirical_fire_modelling.data import (
     generate_structure,
     get_data,
+    get_endog_exog_mask,
     random_binary_dilation_split,
 )
 from empirical_fire_modelling.logging_config import enable_logging
@@ -56,7 +57,7 @@ def fit_random_binary_dilation(
     if cache_check:
         get_data(experiment, cache_check=True)
 
-    endog_data, exog_data, master_mask = get_data(experiment)[:3]
+    endog_data, exog_data, master_mask = get_endog_exog_mask(experiment)
 
     split_kwargs = dict(
         exog_data=exog_data,

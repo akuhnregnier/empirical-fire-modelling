@@ -74,7 +74,7 @@ def plot_single_1d_ale(experiment, column, ax, verbose=False):
         monte_carlo_rep=100,
         monte_carlo_ratio=get_frac_train_nr_samples(Experiment["15VEG_FAPAR"], 0.1),
         ax=ax,
-        ale_factor_exp={variable.FAPAR: -3, variable.DRY_DAY_PERIOD: -4}[column.parent],
+        ale_factor_exp=plotting_configuration.ale_factor_exps[column.parent],
         x_ndigits=plotting_configuration.ndigits.get(column.parent, 2),
         x_skip=4
         if (
@@ -86,7 +86,7 @@ def plot_single_1d_ale(experiment, column, ax, verbose=False):
 
 
 def plot_clim_mon_ale_comp(*args, verbose=False, **kwargs):
-    fig, axes = plt.subplots(2, 2, figsize=(5, 5))
+    fig, axes = plt.subplots(2, 2, figsize=(5.8, 4.1))
     plot_spec = {
         axes[0, 0]: (Experiment["15VEG_FAPAR"], variable.FAPAR[0]),
         axes[0, 1]: (Experiment["15VEG_FAPAR_MON"], variable.FAPAR[0]),
@@ -106,6 +106,7 @@ def plot_clim_mon_ale_comp(*args, verbose=False, **kwargs):
     axes[0, 1].set_title("15VEG_FAPAR_MON")
 
     fig.tight_layout()
+    fig.align_labels()
 
     figure_saver.save_figure(fig, "15VEG_FAPAR_15VEG_FAPAR_MON_ALE_comp")
 

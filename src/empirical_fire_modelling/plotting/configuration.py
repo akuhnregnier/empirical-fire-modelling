@@ -84,6 +84,8 @@ aux1_c = np.array([64, 64, 64, 200], dtype=np.float64) / 255
 ale_factor_exps = {
     (variable.DRY_DAY_PERIOD, variable.FAPAR): -2,
     (variable.FAPAR, variable.FAPAR): -2,
+    variable.FAPAR: -4,
+    variable.DRY_DAY_PERIOD: -4,
 }
 ndigits = {
     variable.FAPAR: 2,
